@@ -1,0 +1,11 @@
+{
+  "buildCommand": "echo 'Build complete'",
+  "devCommand": "npm run dev",
+  "installCommand": "npm install",
+  "framework": "expo",
+  "functions": {
+    "api/**/*.js": {
+      "runtime": "nodejs18.x"
+    }
+  }
+}
