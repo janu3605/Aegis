@@ -1,0 +1,19 @@
+{
+  "name": "aegis",
+  "version": "1.0.0",
+  "description": "> *\"We're not just an SOS button — we're a complete safety ecosystem that works even without internet, even when the phone appears to be off, and even when the user can't speak.\"*",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "expo": "^54.0.33"
+  },
+  "devDependencies": {
+    "@types/react": "~19.1.10",
+    "typescript": "~5.9.2"
+  }
+}
