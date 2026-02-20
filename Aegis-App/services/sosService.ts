@@ -10,7 +10,7 @@ import type { SOSAlert, EmergencyContact, Location as LocationType } from '../ty
 export class SOSService {
   private static instance: SOSService;
   private activeAlert: SOSAlert | null = null;
-  private countdownTimer: NodeJS.Timeout | null = null;
+  private countdownTimer: ReturnType<typeof setInterval> | null = null;
 
   private constructor() {
     this.setupNotifications();
@@ -223,14 +223,15 @@ export class SOSService {
 
       // Send update to contacts
       const contacts = await StorageService.getEmergencyContacts();
-      const isAvailable = await this.isSMSAvailable();
-
-      if (isAvailable) {
-        const phoneNumbers = contacts.map((c) => c.phoneNumber);
-        await SMS.sendSMSAsync(
-          phoneNumbers,
-          '✅ I\'m safe now. The emergency has been resolved. Thank you for your concern.'
-        );
+      if (contacts.length > 0) {
+        const location = await LocationService.getCurrentLocation();
+        if (location) {
+          await AutomaticSMSService.sendSOSAutomatically(
+            contacts,
+            location,
+            '✅ SafeAlert Resolved - I\'m safe now. Thank you for your concern.'
+          );
+        }
       }
 
       await this.sendLocalNotification(
