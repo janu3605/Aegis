@@ -42,7 +42,7 @@ export class SOSService {
    * Check if SMS is available (for backward compatibility)
    */
   async isSMSAvailable(): Promise<boolean> {
-    // Automatic SMS is always available if Firebase is configured
+    // Automatic SMS is always available via Vercel endpoint
     return true;
   }
 
