@@ -581,7 +581,7 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }: any) => {
       // 1. Save to AsyncStorage
       // 2. Check for pattern anomalies
       // 3. Update buddy system
-      // 4. Send to Firebase for real-time tracking
+      // 4. Location tracked successfully
     }
   }
 });

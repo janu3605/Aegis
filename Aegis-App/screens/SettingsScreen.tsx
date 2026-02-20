@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import StorageService from '@/services/storageService';
+import VoiceDetectionService from '@/services/voiceDetectionService';
 import { Colors, SUCCESS_MESSAGES, APP_VERSION } from '@/utils/constants';
 import type { DeviceSettings, UserProfile } from '@/types';
 
@@ -66,6 +67,15 @@ export default function SettingsScreen() {
     setSettings(updatedSettings);
     await StorageService.saveDeviceSettings(updatedSettings);
     Alert.alert('Success', SUCCESS_MESSAGES.SETTINGS_UPDATED);
+  };
+
+  const handleVoiceDetectionToggle = async (value: boolean) => {
+    await handleToggleSetting('voiceDetectionEnabled', value);
+    if (value) {
+      await VoiceDetectionService.startListening();
+    } else {
+      VoiceDetectionService.stopListening();
+    }
   };
 
   const handleSaveProfile = async () => {
@@ -189,7 +199,7 @@ export default function SettingsScreen() {
         {/* Safety Features Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Safety Features</Text>
-          
+
           <View style={styles.settingItem}>
             <View style={styles.settingInfo}>
               <Text style={styles.settingLabel}>🔒 Stealth Mode</Text>
@@ -213,7 +223,7 @@ export default function SettingsScreen() {
             </View>
             <Switch
               value={settings.voiceDetectionEnabled}
-              onValueChange={(value) => handleToggleSetting('voiceDetectionEnabled', value)}
+              onValueChange={handleVoiceDetectionToggle}
               trackColor={{ false: '#767577', true: Colors.primary }}
             />
           </View>
@@ -264,7 +274,7 @@ export default function SettingsScreen() {
         {/* Permissions Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Permissions</Text>
-          
+
           <View style={styles.settingItem}>
             <View style={styles.settingInfo}>
               <Text style={styles.settingLabel}>📍 Location Sharing</Text>
@@ -297,7 +307,7 @@ export default function SettingsScreen() {
         {/* Night Mode Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Night Mode</Text>
-          
+
           <View style={styles.settingItem}>
             <View style={styles.settingInfo}>
               <Text style={styles.settingLabel}>🌙 Schedule Night Mode</Text>
@@ -335,7 +345,7 @@ export default function SettingsScreen() {
         {/* Data & Privacy Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Data & Privacy</Text>
-          
+
           <TouchableOpacity style={styles.dangerButton} onPress={handleClearData}>
             <Text style={styles.dangerButtonText}>🗑️ Clear All Data</Text>
           </TouchableOpacity>
@@ -344,7 +354,7 @@ export default function SettingsScreen() {
         {/* About Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>About</Text>
-          
+
           <View style={styles.aboutCard}>
             <Text style={styles.aboutTitle}>Aegis - Women Safety App</Text>
             <Text style={styles.aboutVersion}>Version {APP_VERSION || '1.0.0'}</Text>

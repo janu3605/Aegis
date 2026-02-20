@@ -1,6 +1,6 @@
 ﻿// Home Screen - Main Dashboard with SOS button
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,11 +11,12 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import SOSService from '@/services/sosService';
 import LocationService from '@/services/locationService';
 import StorageService from '@/services/storageService';
 import FakeCallService from '@/services/fakeCallService';
+import VoiceDetectionService from '@/services/voiceDetectionService';
 import { Colors, SOS_CONFIG } from '@/utils/constants';
 import type { EmergencyContact, Location as LocationType } from '@/types';
 
@@ -27,10 +28,17 @@ export default function HomeScreen() {
   const [emergencyContacts, setEmergencyContacts] = useState<EmergencyContact[]>([]);
   const [safetyScore, setSafetyScore] = useState<number | null>(null);
   const [isCalculatingScore, setIsCalculatingScore] = useState(false);
+  const [voiceDetectionEnabled, setVoiceDetectionEnabled] = useState(false);
 
   useEffect(() => {
     loadInitialData();
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadInitialData();
+    }, [])
+  );
 
   const loadInitialData = async () => {
     try {
@@ -50,6 +58,9 @@ export default function HomeScreen() {
       // Get emergency contacts
       const contacts = await StorageService.getEmergencyContacts();
       setEmergencyContacts(contacts);
+
+      const deviceSettings = await StorageService.getDeviceSettings();
+      setVoiceDetectionEnabled(!!deviceSettings?.voiceDetectionEnabled);
     } catch (error) {
       console.error('Error loading initial data:', error);
     }
@@ -72,7 +83,9 @@ export default function HomeScreen() {
     }
   };
 
-  const handleSOSPress = async () => {
+  const startSOSCountdown = async (
+    type: 'manual' | 'auto' | 'voice-triggered' | 'pattern-detected' = 'manual'
+  ) => {
     // Check if emergency contacts are configured
     if (emergencyContacts.length === 0) {
       Alert.alert(
@@ -83,6 +96,10 @@ export default function HomeScreen() {
           { text: 'Add Contacts', onPress: () => router.push('/(tabs)/contacts' as any) },
         ]
       );
+      return;
+    }
+
+    if (isLoading || hasActiveAlert || countdown !== null) {
       return;
     }
 
@@ -103,8 +120,13 @@ export default function HomeScreen() {
           `Emergency alerts sent to ${emergencyContacts.length} contact(s)`,
           [{ text: 'OK' }]
         );
-      }
+      },
+      type
     );
+  };
+
+  const handleSOSPress = async () => {
+    await startSOSCountdown('manual');
   };
 
   const handleCancelCountdown = () => {
@@ -191,6 +213,23 @@ export default function HomeScreen() {
     }
   };
 
+  useEffect(() => {
+    const unsubscribe = VoiceDetectionService.onDetection((event) => {
+      if (isLoading || hasActiveAlert || countdown !== null) {
+        return;
+      }
+
+      startSOSCountdown('voice-triggered');
+      Alert.alert(
+        'Voice Distress Detected',
+        `Detected: "${event.keyword}". SOS will send after countdown unless cancelled.`,
+        [{ text: 'Cancel', style: 'cancel', onPress: handleCancelCountdown }]
+      );
+    });
+
+    return unsubscribe;
+  }, [isLoading, hasActiveAlert, countdown, emergencyContacts]);
+
   return (
     <View style={styles.container}>
       <StatusBar style="auto" />
@@ -204,6 +243,33 @@ export default function HomeScreen() {
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Aegis</Text>
           <Text style={styles.headerSubtitle}>Your Safety Companion</Text>
+        </View>
+
+        {/* Voice Detection Status */}
+        <View style={styles.voiceCard}>
+          <View style={styles.voiceStatusRow}>
+            <Text style={styles.voiceLabel}>🎤 Voice Detection</Text>
+            <View
+              style={[
+                styles.voiceStatusBadge,
+                voiceDetectionEnabled ? styles.voiceStatusOn : styles.voiceStatusOff,
+              ]}
+            >
+              <Text style={styles.voiceStatusText}>
+                {voiceDetectionEnabled ? 'ON' : 'OFF'}
+              </Text>
+            </View>
+          </View>
+          <Text style={styles.voiceHint}>
+            Say “help help help” to trigger SOS when enabled.
+          </Text>
+          <TouchableOpacity
+            style={styles.voiceTestButton}
+            onPress={() => startSOSCountdown('voice-triggered')}
+            disabled={!voiceDetectionEnabled || isLoading || hasActiveAlert || countdown !== null}
+          >
+            <Text style={styles.voiceTestButtonText}>Test Voice Trigger</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Active Alert Banner */}
@@ -504,6 +570,61 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 30,
+  },
+  voiceCard: {
+    backgroundColor: Colors.surface,
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  voiceStatusRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  voiceLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  voiceStatusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  voiceStatusOn: {
+    backgroundColor: Colors.success,
+  },
+  voiceStatusOff: {
+    backgroundColor: Colors.textSecondary,
+  },
+  voiceStatusText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  voiceHint: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    marginBottom: 12,
+  },
+  voiceTestButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: Colors.secondaryLight,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  voiceTestButtonText: {
+    color: Colors.secondaryDark,
+    fontSize: 14,
+    fontWeight: '600',
   },
   statCard: {
     flex: 1,

@@ -1,9 +1,10 @@
 // SOS Service - Handles emergency alerts
 
-import * as SMS from 'expo-sms';
 import * as Notifications from 'expo-notifications';
+import * as SMS from 'expo-sms';
 import LocationService from './locationService';
 import StorageService from './storageService';
+import AutomaticSMSService from './automaticSMSService';
 import { SOS_CONFIG } from '../utils/constants';
 import type { SOSAlert, EmergencyContact, Location as LocationType } from '../types';
 
@@ -39,14 +40,15 @@ export class SOSService {
   }
 
   /**
-   * Check if SMS is available
+   * Check if SMS is available (for backward compatibility)
    */
   async isSMSAvailable(): Promise<boolean> {
-    return await SMS.isAvailableAsync();
+    // Automatic SMS is always available via Vercel endpoint
+    return true;
   }
 
   /**
-   * Send SMS to emergency contacts
+   * Send SMS to emergency contacts automatically
    */
   private async sendSMSAlerts(
     contacts: EmergencyContact[],
@@ -54,29 +56,40 @@ export class SOSService {
     address?: string
   ): Promise<boolean> {
     try {
-      const isAvailable = await this.isSMSAvailable();
-      
-      if (!isAvailable) {
-        console.warn('SMS not available on this device');
+      if (!contacts || contacts.length === 0) {
+        console.warn('No emergency contacts to send SMS to');
         return false;
       }
 
-      const mapsUrl = LocationService.getGoogleMapsUrl(
-        location.latitude,
-        location.longitude
+      // Use automatic SMS service (no user interaction required)
+      const result = await AutomaticSMSService.sendSOSAutomatically(
+        contacts,
+        location,
+        address
       );
 
-      const message = `${SOS_CONFIG.DEFAULT_MESSAGE}\n\n📍 Location: ${
+      if (result.success && result.failed.length === 0) {
+        return true;
+      }
+
+      const smsAvailable = await SMS.isAvailableAsync();
+      if (!smsAvailable) {
+        console.warn('SMS composer not available for fallback');
+        return result.success;
+      }
+
+      const mapsUrl = `https://www.google.com/maps?q=${location.latitude},${location.longitude}`;
+      const message = `EMERGENCY! I need help. This is my current location:\n\nLocation: ${
         address || 'Address unavailable'
-      }\n\n🗺️ Map: ${mapsUrl}\n\nTimestamp: ${new Date().toLocaleString()}`;
+      }\n\nMap: ${mapsUrl}\n\nTimestamp: ${new Date().toLocaleString()}\n\nI'm in danger. Please help!`;
+      const fallbackRecipients = result.failed.length
+        ? result.failed
+        : contacts.map((contact) => contact.phoneNumber);
 
-      const phoneNumbers = contacts.map((c) => c.phoneNumber);
-
-      const { result } = await SMS.sendSMSAsync(phoneNumbers, message);
-
-      return result === 'sent';
+      const smsResult = await SMS.sendSMSAsync(fallbackRecipients, message);
+      return result.success || smsResult.result === 'sent';
     } catch (error) {
-      console.error('Error sending SMS alerts:', error);
+      console.error('Error sending automatic SMS alerts:', error);
       return false;
     }
   }
@@ -178,7 +191,8 @@ export class SOSService {
    */
   async triggerSOSWithCountdown(
     onCountdown: (seconds: number) => void,
-    onComplete: () => void
+    onComplete: () => void,
+    type: 'manual' | 'auto' | 'voice-triggered' | 'pattern-detected' = 'manual'
   ): Promise<void> {
     let countdown = SOS_CONFIG.COUNTDOWN_DURATION;
 
@@ -188,7 +202,7 @@ export class SOSService {
 
       if (countdown <= 0) {
         this.clearCountdown();
-        this.triggerSOS('manual').then(() => {
+        this.triggerSOS(type).then(() => {
           onComplete();
         });
       }
@@ -229,14 +243,15 @@ export class SOSService {
 
       // Send update to contacts
       const contacts = await StorageService.getEmergencyContacts();
-      const isAvailable = await this.isSMSAvailable();
-
-      if (isAvailable) {
-        const phoneNumbers = contacts.map((c) => c.phoneNumber);
-        await SMS.sendSMSAsync(
-          phoneNumbers,
-          '✅ I\'m safe now. The emergency has been resolved. Thank you for your concern.'
-        );
+      if (contacts.length > 0) {
+        const location = await LocationService.getCurrentLocation();
+        if (location) {
+          await AutomaticSMSService.sendSOSAutomatically(
+            contacts,
+            location,
+            '✅ SafeAlert Resolved - I\'m safe now. Thank you for your concern.'
+          );
+        }
       }
 
       await this.sendLocalNotification(

@@ -1,4 +1,4 @@
-// Community Feed Screen - Real-time safety reports
+// Community Feed Screen - Real-time safety reports (Local mock data)
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -55,8 +55,44 @@ export default function CommunityFeedScreen() {
 
   const loadReports = async () => {
     try {
-      const loadedReports = await FirebaseService.getSafetyReports();
-      setReports(loadedReports);
+      // Load mock data (Firebase integration removed)
+      // In future, could load from a custom backend or use AsyncStorage
+      const mockReports: SafetyReport[] = [
+        {
+          id: '1',
+          reportedBy: 'user_123',
+          type: 'harassment',
+          description: 'Street harassment near Central Park',
+          location: { latitude: 40.7829, longitude: -73.9654, timestamp: Date.now() - 3600000 },
+          severity: 'medium',
+          timestamp: new Date(Date.now() - 3600000),
+          upvotes: 24,
+          downvotes: 2,
+        },
+        {
+          id: '2',
+          reportedBy: 'user_456',
+          type: 'suspicious',
+          description: 'Suspicious activity near railway station',
+          location: { latitude: 40.7505, longitude: -73.9972, timestamp: Date.now() - 7200000 },
+          severity: 'medium',
+          timestamp: new Date(Date.now() - 7200000),
+          upvotes: 18,
+          downvotes: 1,
+        },
+        {
+          id: '3',
+          reportedBy: 'user_789',
+          type: 'safe_zone',
+          description: '24/7 Women Safe Zone - Well lit area with security',
+          location: { latitude: 40.7128, longitude: -74.0060, timestamp: Date.now() - 86400000 },
+          severity: 'low',
+          timestamp: new Date(Date.now() - 86400000),
+          upvotes: 156,
+          downvotes: 0,
+        },
+      ];
+      setReports(mockReports);
     } catch (error) {
       console.error('Failed to load reports:', error);
     }
@@ -86,28 +122,31 @@ export default function CommunityFeedScreen() {
     }
 
     try {
-      const report: Omit<SafetyReport, 'id'> = {
-        reportedBy: 'current_user', // Replace with actual user ID from auth
+      // Create new report (Firebase integration removed, shows confirmation only)
+      const report: SafetyReport = {
+        id: `report_${Date.now()}`,
+        reportedBy: 'current_user',
         type: formData.type,
         description: formData.description.trim(),
         location: currentLocation,
         severity: formData.type === 'assault' ? 'high' : formData.type === 'suspicious' ? 'medium' : 'low',
         timestamp: new Date(),
-        upvotes: 0,
+        upvotes: 1,
         downvotes: 0,
       };
 
-      await FirebaseService.submitSafetyReport(report);
+      // In the future: save to AsyncStorage or custom backend
+      // For now, just show confirmation and reload local mock data
       Alert.alert('Success', SUCCESS_MESSAGES.REPORT_SUBMITTED);
       setModalVisible(false);
-      loadReports();
+      loadReports(); // Reload with mock data
     } catch (error) {
       Alert.alert('Error', 'Failed to submit report. Please try again.');
     }
   };
 
   const handleVote = async (reportId: string, voteType: 'upvote' | 'downvote') => {
-    // TODO: Implement voting logic with Firebase
+    // Voting feature (Firebase integration removed)
     Alert.alert('Vote Recorded', `You ${voteType}d this report.`);
   };
 
