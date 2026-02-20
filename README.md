@@ -1,17 +1,17 @@
 # 🛡️ Aegis — Women Safety App
 
-> *"We're not just an SOS button — we're a complete safety ecosystem that works even without internet, even when the phone appears to be off, and even when the user can't speak."*
+**"We're not just an SOS button — we're a complete safety ecosystem that works even without internet, even when the phone appears to be off, and even when the user can't speak."**
 
-Aegis is an AI-powered, offline-first women safety application designed to provide comprehensive, **proactive** personal security — not just reactive alerts. Built for real-world scenarios including domestic violence, street harassment, and emergencies in low-connectivity areas.
+Aegis is an AI-powered, offline-first women safety application designed to provide comprehensive, proactive personal security — not just reactive alerts. Built for real-world scenarios including domestic violence, street harassment, and emergencies in low-connectivity areas.
 
 ---
 
 ## 🔑 Key Differentiators
 
 | Pillar | What it means |
-|---|---|
+|--------|---------------|
 | **Offline-first** | Mesh-network SOS via Bluetooth — works with zero internet |
-| **Proactive** | Behavioral pattern recognition detects danger *before* it escalates |
+| **Proactive** | Behavioral pattern recognition detects danger before it escalates |
 | **Discreet** | Stealth mode & fake calls — designed for domestic violence survivors |
 | **Community-powered** | Crowd-sourced reports + AI = smarter, real-time safety intelligence |
 
@@ -25,10 +25,10 @@ Aegis is an AI-powered, offline-first women safety application designed to provi
 Instantly simulate a realistic incoming phone call to safely exit a threatening situation. Schedule a fake call on a timer for planned scenarios — no backend required.
 
 #### 🧠 AI-Powered Distress Detection
-Passive on-device microphone monitoring recognizes distress keywords (*"help"*, *"stop"*, *"leave me alone"*) and silently triggers an SOS — even when the screen is off or the phone is in a pocket.
+Passive on-device microphone monitoring recognizes distress keywords ("help", "stop", "leave me alone") and silently triggers an SOS — even when the screen is off or the phone is in a pocket.
 
 #### 📡 Offline Mesh Network SOS
-Broadcasts an encrypted SOS over **Bluetooth Low Energy (BLE)** to nearby devices running the app. Messages hop between phones until they reach one with an internet connection — critical for rural and no-signal areas.
+Broadcasts an encrypted SOS over Bluetooth Low Energy (BLE) to nearby devices running the app. Messages hop between phones until they reach one with an internet connection — critical for rural and no-signal areas.
 
 #### 🎭 Stealth / Disguise Mode
 The app masquerades as a calculator or notes app. A secret keypad combination reveals the real interface, while emergency SOS continues to operate silently in the background.
@@ -60,12 +60,12 @@ A real-time feed of crowd-sourced safety events in your area with upvote/downvot
 ### 🥉 Quick-Win Features
 
 | Feature | Description |
-|---|---|
+|---------|-------------|
 | **Safe Word to Contacts** | Text a secret word → contact instantly sees your location |
 | **Walk Me Home Timer** | Countdown timer with auto-SOS if not cancelled |
 | **Panic PIN** | Wrong PIN on login silently wipes sensitive data & alerts contacts |
 | **Night Mode Auto-Enable** | Enhanced monitoring activates automatically 10 PM – 5 AM |
-| **Safety Score Notifications** | Daily push: *"Your area safety score is 65/100 — stay alert tonight"* |
+| **Safety Score Notifications** | Daily push: "Your area safety score is 65/100 — stay alert tonight" |
 | **Government Scheme Finder** | Surface relevant government women safety schemes by state |
 
 ---
@@ -73,24 +73,23 @@ A real-time feed of crowd-sourced safety events in your area with upvote/downvot
 ## 🛠️ Tech Stack
 
 | Layer | Technologies |
-|---|---|
+|-------|-------------|
 | **Framework** | React Native + Expo |
 | **Language** | TypeScript |
 | **AI / ML** | On-device threat detection, Gemini / OpenAI API, speech recognition |
-| **Networking** | BLE mesh network (`react-native-ble-plx`), Firebase Realtime DB |
-| **Location** | `expo-location` (background tracking + geofencing) |
-| **Media** | `expo-camera`, `expo-av`, Firebase Storage |
-| **Background** | `expo-task-manager`, `expo-background-fetch` |
-| **Auth** | `expo-local-authentication` |
+| **Networking** | BLE mesh network (react-native-ble-plx), Firebase Realtime DB |
+| **Location** | expo-location (background tracking + geofencing) |
+| **Media** | expo-camera, expo-av, Firebase Storage |
+| **Background** | expo-task-manager, expo-background-fetch |
+| **Auth** | expo-local-authentication |
 
 ---
 
 ## 🚀 Getting Started
 
 ### Prerequisites
-
-- [Node.js](https://nodejs.org/) (v18+)
-- [Expo CLI](https://docs.expo.dev/get-started/installation/)
+- Node.js (v18+)
+- Expo CLI
 - Android / iOS device or emulator
 
 ### Installation
@@ -107,7 +106,7 @@ npm install
 npx expo start
 ```
 
-Scan the QR code with **Expo Go** (Android/iOS) or press `a` / `i` to launch on an emulator.
+Scan the QR code with Expo Go (Android/iOS) or press `a` / `i` to launch on an emulator.
 
 ---
 
@@ -143,18 +142,16 @@ Contributions are welcome! Please open an issue first to discuss proposed change
 
 ## 📄 License
 
-This project is licensed under the [MIT License](LICENSE).
+This project is licensed under the MIT License.
 
 ---
 
 ## 🙏 Acknowledgements
 
 - Built with ❤️ for women's safety
-- Powered by [React Native](https://reactnative.dev/) & [Expo](https://expo.dev/)
-- AI capabilities via [Google Gemini](https://deepmind.google/technologies/gemini/) & [OpenAI](https://openai.com/)
+- Powered by React Native & Expo
+- AI capabilities via Google Gemini & OpenAI
 
 ---
 
-<p align="center">
-  <b>Aegis</b> — Because safety should be smart, silent, and always on.
-</p>
+**Aegis — Because safety should be smart, silent, and always on.**
