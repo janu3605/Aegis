@@ -99,6 +99,21 @@ export interface Evidence {
   encrypted: boolean;
 }
 
+export interface SafetyZone {
+  location: Location;
+  radius: number; // in meters
+  safetyScore: number; // 0-100
+  classification: 'safe' | 'caution' | 'unsafe';
+  reportCount: number;
+  lastUpdated: Date;
+  factors: {
+    recentReports: number;
+    highSeverityReports: number;
+    positiveReports: number;
+    timeFactor: number; // night time increases risk
+  };
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -136,4 +151,5 @@ export type RootStackParamList = {
   'settings': undefined;
   'evidence-viewer': { alertId: string };
   'safe-routes': undefined;
+  'location-safety-check': undefined;
 };

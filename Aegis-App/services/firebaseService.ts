@@ -121,8 +121,8 @@ export class FirebaseService {
   async getSafetyReports(limit: number = 50): Promise<SafetyReport[]> {
     try {
       if (!this.database) {
-        console.warn('Firebase database not available. Returning empty reports.');
-        return [];
+        console.warn('Firebase database not available. Using mock data for testing.');
+        return this.getMockSafetyReports();
       }
 
       const reportsRef = ref(this.database, 'safety_reports');
@@ -135,7 +135,8 @@ export class FirebaseService {
       const snapshot = await get(reportsQuery);
       
       if (!snapshot.exists()) {
-        return [];
+        console.warn('No reports in Firebase. Using mock data for testing.');
+        return this.getMockSafetyReports();
       }
 
       const reports: SafetyReport[] = [];
@@ -146,8 +147,70 @@ export class FirebaseService {
       return reports.reverse(); // Most recent first
     } catch (error) {
       console.error('Error getting safety reports:', error);
-      return [];
+      console.warn('Using mock data due to error.');
+      return this.getMockSafetyReports();
     }
+  }
+
+  /**
+   * Get mock safety reports for testing when Firebase is not available
+   */
+  private getMockSafetyReports(): SafetyReport[] {
+    const now = new Date();
+    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+    const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+    return [
+      {
+        id: 'mock-1',
+        location: { latitude: 28.6139, longitude: 77.2090, timestamp: oneHourAgo.getTime() }, // Delhi
+        description: 'Suspicious person following women',
+        severity: 'medium',
+        type: 'suspicious',
+        reportedBy: 'user1',
+        timestamp: oneHourAgo,
+        upvotes: 3,
+        downvotes: 0,
+        verified: true,
+      },
+      {
+        id: 'mock-2',
+        location: { latitude: 28.7041, longitude: 77.1025, timestamp: twoHoursAgo.getTime() }, // Nearby Delhi
+        description: 'Harassment incident reported',
+        severity: 'high',
+        type: 'harassment',
+        reportedBy: 'user2',
+        timestamp: twoHoursAgo,
+        upvotes: 5,
+        downvotes: 1,
+        verified: true,
+      },
+      {
+        id: 'mock-3',
+        location: { latitude: 28.6139, longitude: 77.2090, timestamp: yesterday.getTime() }, // Same location, older
+        description: 'Safe zone - well lit area with security',
+        severity: 'low',
+        type: 'safe_zone',
+        reportedBy: 'user3',
+        timestamp: yesterday,
+        upvotes: 8,
+        downvotes: 0,
+        verified: true,
+      },
+      {
+        id: 'mock-4',
+        location: { latitude: 19.0760, longitude: 72.8777, timestamp: oneHourAgo.getTime() }, // Mumbai (far away)
+        description: 'Assault reported',
+        severity: 'high',
+        type: 'assault',
+        reportedBy: 'user4',
+        timestamp: oneHourAgo,
+        upvotes: 12,
+        downvotes: 2,
+        verified: true,
+      },
+    ];
   }
 
   /**

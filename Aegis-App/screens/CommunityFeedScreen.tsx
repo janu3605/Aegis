@@ -13,12 +13,14 @@ import {
   Modal,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { useLocalSearchParams } from 'expo-router';
 import FirebaseService from '@/services/firebaseService';
 import LocationService from '@/services/locationService';
 import { Colors, SUCCESS_MESSAGES } from '@/utils/constants';
 import type { SafetyReport, Location } from '@/types';
 
 export default function CommunityFeedScreen() {
+  const params = useLocalSearchParams();
   const [reports, setReports] = useState<SafetyReport[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
@@ -31,7 +33,18 @@ export default function CommunityFeedScreen() {
   useEffect(() => {
     loadReports();
     getCurrentPosition();
-  }, []);
+
+    // Check if we have pre-filled location from navigation
+    if (params.prefillLat && params.prefillLng) {
+      const prefillLocation: Location = {
+        latitude: parseFloat(params.prefillLat as string),
+        longitude: parseFloat(params.prefillLng as string),
+        timestamp: Date.now(),
+      };
+      setCurrentLocation(prefillLocation);
+      setModalVisible(true); // Auto-open the report modal
+    }
+  }, [params]);
 
   const getCurrentPosition = async () => {
     const location = await LocationService.getCurrentLocation();
@@ -264,13 +277,23 @@ export default function CommunityFeedScreen() {
             <TouchableOpacity onPress={() => setModalVisible(false)}>
               <Text style={styles.modalCancel}>Cancel</Text>
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>Submit Report</Text>
+            <Text style={styles.modalTitle}>
+              {params.prefillLat ? 'Report for Selected Location' : 'Submit Report'}
+            </Text>
             <TouchableOpacity onPress={handleSaveReport}>
               <Text style={styles.modalSave}>Submit</Text>
             </TouchableOpacity>
           </View>
 
           <ScrollView style={styles.modalContent}>
+            {params.prefillLat && (
+              <View style={styles.locationIndicator}>
+                <Text style={styles.locationIndicatorText}>
+                  📍 Reporting for location: {parseFloat(params.prefillLat as string).toFixed(4)}, {parseFloat(params.prefillLng as string).toFixed(4)}
+                </Text>
+              </View>
+            )}
+
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Report Type</Text>
               <View style={styles.typeButtons}>
@@ -511,6 +534,18 @@ const styles = StyleSheet.create({
   modalContent: {
     flex: 1,
     padding: 20,
+  },
+  locationIndicator: {
+    backgroundColor: Colors.primary,
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 20,
+  },
+  locationIndicatorText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   formGroup: {
     marginBottom: 24,
