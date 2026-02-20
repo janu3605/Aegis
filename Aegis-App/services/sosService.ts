@@ -1,9 +1,9 @@
 // SOS Service - Handles emergency alerts
 
-import * as SMS from 'expo-sms';
 import * as Notifications from 'expo-notifications';
 import LocationService from './locationService';
 import StorageService from './storageService';
+import AutomaticSMSService from './automaticSMSService';
 import { SOS_CONFIG } from '../utils/constants';
 import type { SOSAlert, EmergencyContact, Location as LocationType } from '../types';
 
@@ -39,14 +39,15 @@ export class SOSService {
   }
 
   /**
-   * Check if SMS is available
+   * Check if SMS is available (for backward compatibility)
    */
   async isSMSAvailable(): Promise<boolean> {
-    return await SMS.isAvailableAsync();
+    // Automatic SMS is always available if Firebase is configured
+    return true;
   }
 
   /**
-   * Send SMS to emergency contacts
+   * Send SMS to emergency contacts automatically
    */
   private async sendSMSAlerts(
     contacts: EmergencyContact[],
@@ -54,29 +55,21 @@ export class SOSService {
     address?: string
   ): Promise<boolean> {
     try {
-      const isAvailable = await this.isSMSAvailable();
-      
-      if (!isAvailable) {
-        console.warn('SMS not available on this device');
+      if (!contacts || contacts.length === 0) {
+        console.warn('No emergency contacts to send SMS to');
         return false;
       }
 
-      const mapsUrl = LocationService.getGoogleMapsUrl(
-        location.latitude,
-        location.longitude
+      // Use automatic SMS service (no user interaction required)
+      const success = await AutomaticSMSService.sendSOSAutomatically(
+        contacts,
+        location,
+        address
       );
 
-      const message = `${SOS_CONFIG.DEFAULT_MESSAGE}\n\n📍 Location: ${
-        address || 'Address unavailable'
-      }\n\n🗺️ Map: ${mapsUrl}\n\nTimestamp: ${new Date().toLocaleString()}`;
-
-      const phoneNumbers = contacts.map((c) => c.phoneNumber);
-
-      const { result } = await SMS.sendSMSAsync(phoneNumbers, message);
-
-      return result === 'sent';
+      return success;
     } catch (error) {
-      console.error('Error sending SMS alerts:', error);
+      console.error('Error sending automatic SMS alerts:', error);
       return false;
     }
   }
