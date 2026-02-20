@@ -19,7 +19,11 @@
         "NSMicrophoneUsageDescription": "Aegis uses the microphone to detect distress keywords for automatic emergency response.",
         "NSContactsUsageDescription": "Aegis needs access to contacts to set up your emergency contact list.",
         "NSPhotoLibraryUsageDescription": "Aegis saves evidence photos to your library during emergencies.",
-        "UIBackgroundModes": ["location", "audio", "fetch"]
+        "UIBackgroundModes": [
+          "location",
+          "audio",
+          "fetch"
+        ]
       }
     },
     "android": {
@@ -41,6 +45,13 @@
         "VIBRATE",
         "USE_BIOMETRIC",
         "USE_FINGERPRINT",
+        "BLUETOOTH",
+        "BLUETOOTH_ADMIN",
+        "BLUETOOTH_SCAN",
+        "BLUETOOTH_ADVERTISE",
+        "BLUETOOTH_CONNECT",
+        "ACCESS_WIFI_STATE",
+        "CHANGE_WIFI_STATE",
         "FOREGROUND_SERVICE",
         "FOREGROUND_SERVICE_LOCATION"
       ],
@@ -98,20 +109,13 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/images/notification-icon.png",
-          "color": "#E63946",
-          "sounds": ["./assets/audio/emergency-alert.mp3"]
+          "color": "#E63946"
         }
       ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    },
-    "extra": {
-      "eas": {
-        "projectId": "aegis-women-safety"
-      }
     }
   }
 }

@@ -137,3 +137,21 @@ export type RootStackParamList = {
   'evidence-viewer': { alertId: string };
   'safe-routes': undefined;
 };
+
+// BLE Offline SOS types
+export interface BLESOSPayload {
+  userId: string;
+  latitude: number;
+  longitude: number;
+  timestamp: number;
+}
+
+export type BLEMode = 'victim' | 'bystander' | 'idle';
+
+export interface BLERelayRecord {
+  id: string;
+  payload: BLESOSPayload;
+  relayedBy: string;
+  relayedAt: number;
+  delivered: boolean;
+}

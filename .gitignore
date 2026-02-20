@@ -1,0 +1,5 @@
+# Ignore duplicate modules folder in root if it's a mistake
+/modules/
+
+# Ignore Workspace settings (unless you explicitly share them with your team)
+.vscode/

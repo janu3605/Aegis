@@ -21,7 +21,7 @@ import {
   getDownloadURL,
   FirebaseStorage,
 } from 'firebase/storage';
-import type { SafetyReport, BuddySession } from '../types';
+import type { SafetyReport, BuddySession, BLESOSPayload, BLERelayRecord } from '../types';
 
 // Firebase configuration (replace with your actual config)
 const firebaseConfig = {
@@ -101,7 +101,7 @@ export class FirebaseService {
 
       const reportsRef = ref(this.database, 'safety_reports');
       const newReportRef = push(reportsRef);
-      
+
       const reportWithId = {
         ...report,
         id: newReportRef.key,
@@ -133,7 +133,7 @@ export class FirebaseService {
       );
 
       const snapshot = await get(reportsQuery);
-      
+
       if (!snapshot.exists()) {
         return [];
       }
@@ -156,11 +156,11 @@ export class FirebaseService {
   listenToSafetyReports(callback: (reports: SafetyReport[]) => void): () => void {
     if (!this.database) {
       console.warn('Firebase database not available. Real-time updates disabled.');
-      return () => {};
+      return () => { };
     }
     if (!this.database) {
       console.error('Database not initialized');
-      return () => {};
+      return () => { };
     }
 
     const reportsRef = ref(this.database, 'safety_reports');
@@ -168,7 +168,7 @@ export class FirebaseService {
 
     const listener = onValue(reportsQuery, (snapshot) => {
       const reports: SafetyReport[] = [];
-      
+
       if (snapshot.exists()) {
         snapshot.forEach((child) => {
           reports.push(child.val());
@@ -194,7 +194,7 @@ export class FirebaseService {
 
       const sessionsRef = ref(this.database, 'buddy_sessions');
       const newSessionRef = push(sessionsRef);
-      
+
       const sessionWithId = {
         ...session,
         id: newSessionRef.key,
@@ -233,7 +233,7 @@ export class FirebaseService {
   listenToBuddySession(sessionId: string, callback: (session: BuddySession | null) => void): () => void {
     if (!this.database) {
       console.warn('Firebase database not available. Buddy session listener disabled.');
-      return () => {};
+      return () => { };
     }
 
     const sessionRef = ref(this.database, `buddy_sessions/${sessionId}`);
@@ -313,7 +313,7 @@ export class FirebaseService {
   ): () => void {
     if (!this.database) {
       console.warn('Firebase database not available. Location listener disabled.');
-      return () => {};
+      return () => { };
     }
 
     const locationRef = ref(this.database, `user_locations/${userId}`);
@@ -327,6 +327,71 @@ export class FirebaseService {
     });
 
     return () => off(locationRef);
+  }
+
+  // ═══════════════════════════════════════════
+  // BLE SOS RELAY ("Dumb Pipe")
+  // ═══════════════════════════════════════════
+
+  /**
+   * Relay an SOS payload received via BLE to Firebase
+   * Called by the bystander device after picking up a victim's SOS broadcast
+   */
+  async relaySOSPayload(
+    payload: BLESOSPayload,
+    relayedBy: string = 'anonymous-bystander'
+  ): Promise<string | null> {
+    try {
+      if (!this.database) {
+        console.warn('Firebase database not available. SOS relay failed.');
+        return null;
+      }
+
+      const relaysRef = ref(this.database, 'sos-relay');
+      const newRelayRef = push(relaysRef);
+
+      const relayRecord: BLERelayRecord = {
+        id: newRelayRef.key!,
+        payload,
+        relayedBy,
+        relayedAt: Date.now(),
+        delivered: false,
+      };
+
+      await set(newRelayRef, relayRecord);
+      console.log('✅ SOS relay saved to Firebase:', newRelayRef.key);
+      return newRelayRef.key;
+    } catch (error) {
+      console.error('Error relaying SOS to Firebase:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Listen for incoming SOS relay entries (for dashboard/admin)
+   */
+  listenForSOSRelays(
+    callback: (relays: BLERelayRecord[]) => void
+  ): () => void {
+    if (!this.database) {
+      console.warn('Firebase database not available. Relay listener disabled.');
+      return () => { };
+    }
+
+    const relaysRef = ref(this.database, 'sos-relay');
+    const relaysQuery = query(relaysRef, orderByChild('relayedAt'), limitToLast(20));
+
+    const listener = onValue(relaysQuery, (snapshot) => {
+      const relays: BLERelayRecord[] = [];
+      if (snapshot.exists()) {
+        snapshot.forEach((child) => {
+          relays.push(child.val());
+        });
+      }
+      callback(relays.reverse());
+    });
+
+    return () => off(relaysRef);
   }
 }
 

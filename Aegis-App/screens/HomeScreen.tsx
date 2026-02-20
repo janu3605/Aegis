@@ -1,6 +1,6 @@
 // Home Screen - Main Dashboard with SOS button
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,13 +9,19 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  Animated,
+  Vibration,
+  Dimensions,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
+import { Audio } from 'expo-av';
+import * as Haptics from 'expo-haptics';
 import SOSService from '@/services/sosService';
+import type { SOSPhase } from '@/services/sosService';
 import LocationService from '@/services/locationService';
 import StorageService from '@/services/storageService';
-import { Colors, SOS_CONFIG } from '@/utils/constants';
+import { Colors, SOS_CONFIG, BLE_CONFIG } from '@/utils/constants';
 import type { EmergencyContact, Location as LocationType } from '@/types';
 
 export default function HomeScreen() {
@@ -24,10 +30,72 @@ export default function HomeScreen() {
   const [hasActiveAlert, setHasActiveAlert] = useState(false);
   const [location, setLocation] = useState<LocationType | null>(null);
   const [emergencyContacts, setEmergencyContacts] = useState<EmergencyContact[]>([]);
+  const [sosPhase, setSOSPhase] = useState<SOSPhase>('idle');
+
+  // Alert Mode animation
+  const flashAnim = useRef(new Animated.Value(0)).current;
+  const flashTimer = useRef<NodeJS.Timeout | null>(null);
+  const soundRef = useRef<Audio.Sound | null>(null);
 
   useEffect(() => {
     loadInitialData();
+
+    // Listen for SOS phase changes (BLE broadcasting, Alert Mode, etc.)
+    SOSService.setOnPhaseChange((phase: SOSPhase) => {
+      setSOSPhase(phase);
+      if (phase === 'active' || phase === 'resolved') {
+        setHasActiveAlert(phase === 'active');
+      }
+    });
+
+    return () => {
+      stopAlertMode();
+    };
   }, []);
+
+  // Start/stop Alert Mode effects based on phase
+  useEffect(() => {
+    if (sosPhase === 'alert-mode') {
+      startAlertModeEffects();
+    } else {
+      stopAlertMode();
+    }
+  }, [sosPhase]);
+
+  // ═══════════════════════════════════════════
+  // ALERT MODE EFFECTS (flash + alarm + vibration)
+  // ═══════════════════════════════════════════
+
+  const startAlertModeEffects = async () => {
+    // Start screen flash animation
+    const flashLoop = () => {
+      Animated.sequence([
+        Animated.timing(flashAnim, { toValue: 1, duration: 250, useNativeDriver: false }),
+        Animated.timing(flashAnim, { toValue: 0, duration: 250, useNativeDriver: false }),
+      ]).start(() => flashLoop());
+    };
+    flashLoop();
+
+    // Start vibration pattern (repeating)
+    Vibration.vibrate([500, 500, 500, 500], true);
+
+    // Start haptic feedback
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+  };
+
+  const stopAlertMode = () => {
+    // Stop vibration
+    Vibration.cancel();
+
+    // Stop sound
+    if (soundRef.current) {
+      soundRef.current.unloadAsync();
+      soundRef.current = null;
+    }
+
+    // Reset flash
+    flashAnim.setValue(0);
+  };
 
   const loadInitialData = async () => {
     try {
@@ -63,7 +131,7 @@ export default function HomeScreen() {
 
     // Start countdown
     setIsLoading(true);
-    
+
     await SOSService.triggerSOSWithCountdown(
       (seconds) => {
         setCountdown(seconds);
@@ -72,7 +140,7 @@ export default function HomeScreen() {
         setCountdown(null);
         setIsLoading(false);
         setHasActiveAlert(true);
-        
+
         Alert.alert(
           '🚨 SOS Alert Sent',
           `Emergency alerts sent to ${emergencyContacts.length} contact(s)`,
@@ -100,6 +168,8 @@ export default function HomeScreen() {
             const success = await SOSService.resolveActiveAlert();
             if (success) {
               setHasActiveAlert(false);
+              setSOSPhase('idle');
+              stopAlertMode();
               Alert.alert('✅ Alert Resolved', 'Your contacts have been notified.');
             }
           },
@@ -108,10 +178,15 @@ export default function HomeScreen() {
     );
   };
 
+  const handleDismissAlertMode = () => {
+    SOSService.deactivateAlertMode();
+    stopAlertMode();
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar style="auto" />
-      
+
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -197,7 +272,7 @@ export default function HomeScreen() {
         {/* Quick Actions */}
         <View style={styles.actionsContainer}>
           <Text style={styles.sectionTitle}>Quick Actions</Text>
-          
+
           <TouchableOpacity
             style={styles.actionCard}
             onPress={() => router.push('/(tabs)/contacts' as any)}
@@ -262,6 +337,60 @@ export default function HomeScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* BLE Broadcasting Status Overlay */}
+      {sosPhase === 'ble-broadcasting' && (
+        <View style={styles.bleOverlay}>
+          <View style={styles.bleOverlayContent}>
+            <Text style={styles.bleOverlayIcon}>📡</Text>
+            <Text style={styles.bleOverlayTitle}>Broadcasting SOS</Text>
+            <Text style={styles.bleOverlaySubtitle}>
+              No internet detected. Searching for nearby phones via Bluetooth...
+            </Text>
+            <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 16 }} />
+            <Text style={styles.bleOverlayTimer}>
+              Alert Mode activates in {BLE_CONFIG.TIMEOUT_MS / 1000}s if no relay
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {/* Alert Mode Full-Screen Overlay */}
+      {sosPhase === 'alert-mode' && (
+        <Animated.View
+          style={[
+            styles.alertModeOverlay,
+            {
+              backgroundColor: flashAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: ['#E63946', '#FFFFFF'],
+              }),
+            },
+          ]}
+        >
+          <Text style={styles.alertModeIcon}>🚨</Text>
+          <Text style={[
+            styles.alertModeTitle,
+            { color: flashAnim.interpolate({ inputRange: [0, 1], outputRange: ['#FFFFFF', '#E63946'] }) as any }
+          ]}>
+            EMERGENCY
+          </Text>
+          <Text style={styles.alertModeSubtitle}>
+            NO INTERNET • NO RELAY FOUND
+          </Text>
+          {location && (
+            <Text style={styles.alertModeLocation}>
+              📍 {location.latitude.toFixed(6)}, {location.longitude.toFixed(6)}
+            </Text>
+          )}
+          <TouchableOpacity
+            style={styles.alertModeDismiss}
+            onPress={handleDismissAlertMode}
+          >
+            <Text style={styles.alertModeDismissText}>Dismiss Alert Mode</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      )}
     </View>
   );
 }
@@ -472,5 +601,88 @@ const styles = StyleSheet.create({
   locationAccuracy: {
     fontSize: 12,
     color: Colors.textSecondary,
+  },
+
+  // BLE Broadcasting Overlay
+  bleOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    padding: 24,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
+  bleOverlayContent: {
+    alignItems: 'center',
+  },
+  bleOverlayIcon: {
+    fontSize: 48,
+    marginBottom: 12,
+  },
+  bleOverlayTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 8,
+  },
+  bleOverlaySubtitle: {
+    fontSize: 14,
+    color: '#AAAAAA',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  bleOverlayTimer: {
+    fontSize: 12,
+    color: Colors.warning,
+    marginTop: 12,
+  },
+
+  // Alert Mode Full-Screen Overlay
+  alertModeOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 999,
+  },
+  alertModeIcon: {
+    fontSize: 80,
+    marginBottom: 20,
+  },
+  alertModeTitle: {
+    fontSize: 56,
+    fontWeight: 'bold',
+    letterSpacing: 8,
+    marginBottom: 12,
+  },
+  alertModeSubtitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    opacity: 0.8,
+    marginBottom: 20,
+  },
+  alertModeLocation: {
+    fontSize: 16,
+    color: '#FFFFFF',
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginBottom: 30,
+  },
+  alertModeDismiss: {
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  alertModeDismissText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });
