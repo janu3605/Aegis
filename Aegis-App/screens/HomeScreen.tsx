@@ -24,6 +24,8 @@ export default function HomeScreen() {
   const [hasActiveAlert, setHasActiveAlert] = useState(false);
   const [location, setLocation] = useState<LocationType | null>(null);
   const [emergencyContacts, setEmergencyContacts] = useState<EmergencyContact[]>([]);
+  const [safetyScore, setSafetyScore] = useState<number | null>(null);
+  const [isCalculatingScore, setIsCalculatingScore] = useState(false);
 
   useEffect(() => {
     loadInitialData();
@@ -39,11 +41,33 @@ export default function HomeScreen() {
       const loc = await LocationService.getCurrentLocation();
       setLocation(loc);
 
+      // Calculate safety score if location available
+      if (loc) {
+        await calculateSafetyScore(loc);
+      }
+
       // Get emergency contacts
       const contacts = await StorageService.getEmergencyContacts();
       setEmergencyContacts(contacts);
     } catch (error) {
       console.error('Error loading initial data:', error);
+    }
+  };
+
+  const calculateSafetyScore = async (loc: LocationType) => {
+    try {
+      setIsCalculatingScore(true);
+      const score = await LocationService.calculateSafetyScore(
+        loc.latitude,
+        loc.longitude,
+        500 // 500 meter radius
+      );
+      setSafetyScore(score);
+    } catch (error) {
+      console.error('Error calculating safety score:', error);
+      setSafetyScore(null);
+    } finally {
+      setIsCalculatingScore(false);
     }
   };
 
@@ -189,7 +213,15 @@ export default function HomeScreen() {
             <Text style={styles.statLabel}>Location</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={styles.statValue}>95</Text>
+            <Text style={styles.statValue}>
+              {isCalculatingScore ? (
+                <ActivityIndicator size="small" color={Colors.primary} />
+              ) : safetyScore !== null ? (
+                safetyScore
+              ) : (
+                '—'
+              )}
+            </Text>
             <Text style={styles.statLabel}>Safety Score</Text>
           </View>
         </View>
@@ -220,6 +252,18 @@ export default function HomeScreen() {
             <View style={styles.actionContent}>
               <Text style={styles.actionTitle}>Community Feed</Text>
               <Text style={styles.actionSubtitle}>View safety reports near you</Text>
+            </View>
+            <Text style={styles.actionChevron}>›</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionCard}
+            onPress={() => router.push('/location-safety-check' as any)}
+          >
+            <Text style={styles.actionIcon}>🛡️</Text>
+            <View style={styles.actionContent}>
+              <Text style={styles.actionTitle}>Check Location Safety</Text>
+              <Text style={styles.actionSubtitle}>Analyze safety of any location</Text>
             </View>
             <Text style={styles.actionChevron}>›</Text>
           </TouchableOpacity>

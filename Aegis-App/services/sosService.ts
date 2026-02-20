@@ -10,7 +10,7 @@ import type { SOSAlert, EmergencyContact, Location as LocationType } from '../ty
 export class SOSService {
   private static instance: SOSService;
   private activeAlert: SOSAlert | null = null;
-  private countdownTimer: NodeJS.Timeout | null = null;
+  private countdownTimer: ReturnType<typeof setInterval> | null = null;
 
   private constructor() {
     this.setupNotifications();
