@@ -10,6 +10,9 @@ import {
   Alert,
   TextInput,
   Modal,
+  SafeAreaView,
+  Platform,
+  StatusBar as RNStatusBar,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import StorageService from '@/services/storageService';
@@ -59,13 +62,23 @@ export default function EmergencyContactsScreen() {
       return;
     }
 
+    const normalizePhoneNumber = (value: string) => {
+      const trimmed = value.trim();
+      if (trimmed.startsWith('+')) {
+        return trimmed;
+      }
+
+      const digitsOnly = trimmed.replace(/[^\d]/g, '').replace(/^0+/, '');
+      return `+91${digitsOnly}`;
+    };
+
     try {
       if (editingContact) {
         // Update existing contact
         const updatedContact: EmergencyContact = {
           ...editingContact,
           name: formData.name.trim(),
-          phoneNumber: formData.phoneNumber.trim(),
+          phoneNumber: normalizePhoneNumber(formData.phoneNumber),
           email: formData.email.trim() || undefined,
           relationship: formData.relationship.trim() || undefined,
         };
@@ -76,7 +89,7 @@ export default function EmergencyContactsScreen() {
         const newContact: EmergencyContact = {
           id: `contact_${Date.now()}`,
           name: formData.name.trim(),
-          phoneNumber: formData.phoneNumber.trim(),
+          phoneNumber: normalizePhoneNumber(formData.phoneNumber),
           email: formData.email.trim() || undefined,
           relationship: formData.relationship.trim() || undefined,
           isPrimary: contacts.length === 0, // First contact is primary
@@ -132,7 +145,7 @@ export default function EmergencyContactsScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <StatusBar style="auto" />
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
@@ -223,7 +236,7 @@ export default function EmergencyContactsScreen() {
         presentationStyle="pageSheet"
         onRequestClose={() => setModalVisible(false)}
       >
-        <View style={styles.modalContainer}>
+        <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <TouchableOpacity onPress={() => setModalVisible(false)}>
               <Text style={styles.modalCancel}>Cancel</Text>
@@ -252,11 +265,12 @@ export default function EmergencyContactsScreen() {
               <Text style={styles.formLabel}>Phone Number *</Text>
               <TextInput
                 style={styles.formInput}
-                placeholder="+1 (555) 123-4567"
+                placeholder="9876543210"
                 value={formData.phoneNumber}
                 onChangeText={(text) => setFormData({ ...formData, phoneNumber: text })}
                 keyboardType="phone-pad"
               />
+              <Text style={styles.formHint}>We will automatically add +91 if missing.</Text>
             </View>
 
             <View style={styles.formGroup}>
@@ -284,9 +298,9 @@ export default function EmergencyContactsScreen() {
 
             <Text style={styles.formNote}>* Required fields</Text>
           </ScrollView>
-        </View>
+        </SafeAreaView>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -434,6 +448,7 @@ const styles = StyleSheet.create({
   modalContainer: {
     flex: 1,
     backgroundColor: Colors.background,
+    paddingTop: Platform.OS === 'android' ? RNStatusBar.currentHeight ?? 0 : 0,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -478,6 +493,11 @@ const styles = StyleSheet.create({
     color: Colors.text,
     borderWidth: 1,
     borderColor: Colors.border,
+  },
+  formHint: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 6,
   },
   formNote: {
     fontSize: 12,

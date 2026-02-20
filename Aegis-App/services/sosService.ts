@@ -178,7 +178,8 @@ export class SOSService {
    */
   async triggerSOSWithCountdown(
     onCountdown: (seconds: number) => void,
-    onComplete: () => void
+    onComplete: () => void,
+    type: 'manual' | 'auto' | 'voice-triggered' | 'pattern-detected' = 'manual'
   ): Promise<void> {
     let countdown = SOS_CONFIG.COUNTDOWN_DURATION;
 
@@ -188,7 +189,7 @@ export class SOSService {
 
       if (countdown <= 0) {
         this.clearCountdown();
-        this.triggerSOS('manual').then(() => {
+        this.triggerSOS(type).then(() => {
           onComplete();
         });
       }

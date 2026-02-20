@@ -108,6 +108,7 @@ export const BUDDY_CONFIG = {
 export const VOICE_CONFIG = {
   DISTRESS_KEYWORDS: [
     'help',
+    'help help help',
     'stop',
     'leave me alone',
     'police',

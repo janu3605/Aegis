@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import StorageService from '@/services/storageService';
+import VoiceDetectionService from '@/services/voiceDetectionService';
 import { Colors, SUCCESS_MESSAGES, APP_VERSION } from '@/utils/constants';
 import type { DeviceSettings, UserProfile } from '@/types';
 
@@ -66,6 +67,15 @@ export default function SettingsScreen() {
     setSettings(updatedSettings);
     await StorageService.saveDeviceSettings(updatedSettings);
     Alert.alert('Success', SUCCESS_MESSAGES.SETTINGS_UPDATED);
+  };
+
+  const handleVoiceDetectionToggle = async (value: boolean) => {
+    await handleToggleSetting('voiceDetectionEnabled', value);
+    if (value) {
+      await VoiceDetectionService.startListening();
+    } else {
+      VoiceDetectionService.stopListening();
+    }
   };
 
   const handleSaveProfile = async () => {
@@ -213,7 +223,7 @@ export default function SettingsScreen() {
             </View>
             <Switch
               value={settings.voiceDetectionEnabled}
-              onValueChange={(value) => handleToggleSetting('voiceDetectionEnabled', value)}
+              onValueChange={handleVoiceDetectionToggle}
               trackColor={{ false: '#767577', true: Colors.primary }}
             />
           </View>
