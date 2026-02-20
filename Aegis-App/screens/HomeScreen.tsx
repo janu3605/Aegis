@@ -1,4 +1,4 @@
-// Home Screen - Main Dashboard with SOS button
+﻿// Home Screen - Main Dashboard with SOS button
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -15,6 +15,7 @@ import { router } from 'expo-router';
 import SOSService from '@/services/sosService';
 import LocationService from '@/services/locationService';
 import StorageService from '@/services/storageService';
+import FakeCallService from '@/services/fakeCallService';
 import { Colors, SOS_CONFIG } from '@/utils/constants';
 import type { EmergencyContact, Location as LocationType } from '@/types';
 
@@ -63,7 +64,7 @@ export default function HomeScreen() {
 
     // Start countdown
     setIsLoading(true);
-    
+
     await SOSService.triggerSOSWithCountdown(
       (seconds) => {
         setCountdown(seconds);
@@ -72,9 +73,9 @@ export default function HomeScreen() {
         setCountdown(null);
         setIsLoading(false);
         setHasActiveAlert(true);
-        
+
         Alert.alert(
-          '🚨 SOS Alert Sent',
+          'SOS Alert Sent',
           `Emergency alerts sent to ${emergencyContacts.length} contact(s)`,
           [{ text: 'OK' }]
         );
@@ -100,7 +101,7 @@ export default function HomeScreen() {
             const success = await SOSService.resolveActiveAlert();
             if (success) {
               setHasActiveAlert(false);
-              Alert.alert('✅ Alert Resolved', 'Your contacts have been notified.');
+              Alert.alert('Alert Resolved', 'Your contacts have been notified.');
             }
           },
         },
@@ -108,10 +109,68 @@ export default function HomeScreen() {
     );
   };
 
+  const handleFakeCall = () => {
+    if (FakeCallService.isCallActive()) {
+      Alert.alert('Call Active', 'A fake call is already in progress.');
+      return;
+    }
+
+    const popularCallers = require('@/services/fakeCallService').default.constructor.getPopularCallers();
+    const callerOptions = popularCallers.map((caller: any) => ({
+      text: `${caller.callerImage} ${caller.callerName}`,
+      onPress: () => initiateCall(caller),
+    }));
+
+    Alert.alert(
+      'Select Caller',
+      'Choose who will call you, or schedule for later',
+      [
+        ...callerOptions,
+        { text: 'Schedule Later', onPress: () => router.push('/(tabs)/schedule-call' as any) },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
+  };
+
+  const initiateCall = async (caller: any) => {
+    try {
+      // Initialize the call service
+      await FakeCallService.initiateCall(caller, {
+        onCallAnswered: () => {
+          console.log('Call was answered');
+        },
+        onCallDeclined: () => {
+          console.log('Call was declined by user');
+        },
+        onCallEnded: () => {
+          console.log('Call has ended');
+        },
+      });
+
+      // Auto-answer after 1 second and navigate to call screen
+      setTimeout(async () => {
+        await FakeCallService.answerCall();
+      }, 1000);
+
+      // Navigate to the fake call screen with caller info
+      router.push({
+        pathname: '/fakeCall',
+        params: {
+          callerName: caller.callerName,
+          callerImage: caller.callerImage,
+          callerPhone: caller.callerPhone || '+1 (555) 000-0000',
+        },
+      } as any);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to initiate call');
+      console.error('Error initiating call:', error);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar style="auto" />
-      
+
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -119,14 +178,14 @@ export default function HomeScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>🛡️ Aegis</Text>
+          <Text style={styles.headerTitle}>Aegis</Text>
           <Text style={styles.headerSubtitle}>Your Safety Companion</Text>
         </View>
 
         {/* Active Alert Banner */}
         {hasActiveAlert && (
           <View style={styles.alertBanner}>
-            <Text style={styles.alertBannerText}>🚨 Active Emergency Alert</Text>
+            <Text style={styles.alertBannerText}>Active Emergency Alert</Text>
             <TouchableOpacity
               style={styles.resolveButton}
               onPress={handleResolveAlert}
@@ -184,7 +243,7 @@ export default function HomeScreen() {
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statValue}>
-              {location ? '✓' : '✗'}
+              {location ? 'Yes' : 'No'}
             </Text>
             <Text style={styles.statLabel}>Location</Text>
           </View>
@@ -197,62 +256,74 @@ export default function HomeScreen() {
         {/* Quick Actions */}
         <View style={styles.actionsContainer}>
           <Text style={styles.sectionTitle}>Quick Actions</Text>
-          
+
           <TouchableOpacity
             style={styles.actionCard}
             onPress={() => router.push('/(tabs)/contacts' as any)}
           >
-            <Text style={styles.actionIcon}>👥</Text>
+            <Text style={styles.actionIcon}>C</Text>
             <View style={styles.actionContent}>
               <Text style={styles.actionTitle}>Emergency Contacts</Text>
               <Text style={styles.actionSubtitle}>
                 {emergencyContacts.length} contact{emergencyContacts.length !== 1 ? 's' : ''} added
               </Text>
             </View>
-            <Text style={styles.actionChevron}>›</Text>
+            <Text style={styles.actionChevron}>{'>'}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.actionCard}
             onPress={() => router.push('/(tabs)/community' as any)}
           >
-            <Text style={styles.actionIcon}>🌐</Text>
+            <Text style={styles.actionIcon}>F</Text>
             <View style={styles.actionContent}>
               <Text style={styles.actionTitle}>Community Feed</Text>
               <Text style={styles.actionSubtitle}>View safety reports near you</Text>
             </View>
-            <Text style={styles.actionChevron}>›</Text>
+            <Text style={styles.actionChevron}>{'>'}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.actionCard}
-            onPress={() => Alert.alert('Coming Soon', 'Fake Call feature will be available soon!')}
+            onPress={handleFakeCall}
           >
-            <Text style={styles.actionIcon}>📞</Text>
+            <Text style={styles.actionIcon}>Call</Text>
             <View style={styles.actionContent}>
               <Text style={styles.actionTitle}>Fake Call</Text>
-              <Text style={styles.actionSubtitle}>Schedule a distraction call</Text>
+              <Text style={styles.actionSubtitle}>Instant distraction mode</Text>
             </View>
-            <Text style={styles.actionChevron}>›</Text>
+            <Text style={styles.actionChevron}>{'>'}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.actionCard}
             onPress={() => router.push('/(tabs)/settings' as any)}
           >
-            <Text style={styles.actionIcon}>⚙️</Text>
+            <Text style={styles.actionIcon}>S</Text>
             <View style={styles.actionContent}>
               <Text style={styles.actionTitle}>Settings</Text>
               <Text style={styles.actionSubtitle}>Configure app preferences</Text>
             </View>
-            <Text style={styles.actionChevron}>›</Text>
+            <Text style={styles.actionChevron}>{'>'}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionCard}
+            onPress={() => router.push('/stealthNews' as any)}
+          >
+            <Text style={styles.actionIcon}>N</Text>
+            <View style={styles.actionContent}>
+              <Text style={styles.actionTitle}>Stealth News</Text>
+              <Text style={styles.actionSubtitle}>Disguised news mode with hidden SOS trigger</Text>
+            </View>
+            <Text style={styles.actionChevron}>{'>'}</Text>
           </TouchableOpacity>
         </View>
 
         {/* Location Info */}
         {location && (
           <View style={styles.locationCard}>
-            <Text style={styles.locationTitle}>📍 Current Location</Text>
+            <Text style={styles.locationTitle}>Current Location</Text>
             <Text style={styles.locationText}>
               {location.latitude.toFixed(6)}, {location.longitude.toFixed(6)}
             </Text>
@@ -474,3 +545,4 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
 });
+
