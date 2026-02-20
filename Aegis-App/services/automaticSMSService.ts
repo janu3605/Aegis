@@ -1,5 +1,5 @@
 // Automatic SMS Service - Sends SMS via backend without user interaction
-// Uses Vercel serverless function with msg91 SMS gateway
+// Uses Vercel serverless function with a provider (Twilio, etc.)
 // This replaces expo-sms for automatic sending
 
 import type { EmergencyContact, Location as LocationType } from '../types';
@@ -9,6 +9,13 @@ const VERCEL_ENDPOINT = process.env.EXPO_PUBLIC_VERCEL_ENDPOINT || 'https://aegi
 const SOS_AUTH_TOKEN = process.env.EXPO_PUBLIC_SOS_AUTH_TOKEN || '';
 
 
+
+type AutomaticSMSResult = {
+  success: boolean;
+  sent: string[];
+  failed: string[];
+  message?: string;
+};
 
 class AutomaticSMSService {
   private static instance: AutomaticSMSService;
@@ -30,11 +37,11 @@ class AutomaticSMSService {
     contacts: EmergencyContact[],
     location: LocationType,
     address?: string
-  ): Promise<boolean> {
+  ): Promise<AutomaticSMSResult> {
     try {
       if (!contacts || contacts.length === 0) {
         console.warn('No emergency contacts to send SMS to');
-        return false;
+        return { success: false, sent: [], failed: [], message: 'No contacts' };
       }
 
       // Format phone numbers (ensure 91 prefix for India without +)
@@ -70,24 +77,40 @@ class AutomaticSMSService {
           response.status,
           response.statusText
         );
-        return false;
+        return {
+          success: false,
+          sent: [],
+          failed: phoneNumbers,
+          message: response.statusText,
+        };
       }
 
       const data: any = await response.json();
+      const results = Array.isArray(data.results) ? data.results : [];
+      const sent = results
+        .filter((r: any) => r.status === 'sent')
+        .map((r: any) => r.phoneNumber || r.normalizedPhone)
+        .filter(Boolean);
+      const sentSet = new Set(sent);
+      const failed = phoneNumbers.filter((phone) => !sentSet.has(phone));
 
       if (data.success) {
-        const sentCount = data.results.filter(
-          (r: any) => r.status === 'sent'
-        ).length;
-        console.log(`SOS SMS sent to ${sentCount}/${phoneNumbers.length} contacts via msg91`);
-        return true;
+        console.log(
+          `SOS SMS sent to ${sent.length}/${phoneNumbers.length} contacts via provider`
+        );
       } else {
         console.error('Failed to send SOS SMS:', data.message);
-        return false;
       }
+
+      return {
+        success: !!data.success,
+        sent,
+        failed,
+        message: data.message,
+      };
     } catch (error) {
       console.error('Error sending automatic SOS SMS:', error);
-      return false;
+      return { success: false, sent: [], failed: [], message: 'Unexpected error' };
     }
   }
 

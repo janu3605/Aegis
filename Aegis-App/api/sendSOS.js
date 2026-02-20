@@ -1,18 +1,18 @@
 // Vercel Serverless Function - Send SOS SMS
 // Deploy automatically with: vercel deploy
 
-const axios = require('axios');
+const twilio = require('twilio');
 
-// msg91 API configuration
-const MSG91_AUTH_KEY = process.env.MSG91_AUTH_KEY;
-const MSG91_ROUTE = process.env.MSG91_ROUTE || '4'; // Route 4 for transactional SMS
-const MSG91_SENDER_ID = process.env.MSG91_SENDER_ID || 'AEGIS';
+// Twilio SMS configuration
+const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
+const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
+const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER;
 
 /**
- * Send SOS alerts via msg91 SMS gateway
+ * Send SOS alerts via Twilio SMS
  * Endpoint: POST /api/sendSOS
  */
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   // Only allow POST and OPTIONS
   if (req.method === 'OPTIONS') {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -51,8 +51,8 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Phone numbers are required' });
     }
 
-    if (!MSG91_AUTH_KEY) {
-      console.error('MSG91_AUTH_KEY not configured in environment variables');
+    if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_PHONE_NUMBER) {
+      console.error('Twilio SMS not configured in environment variables');
       return res.status(500).json({ 
         error: 'SMS service not configured. Please contact administrator.' 
       });
@@ -61,55 +61,59 @@ export default async function handler(req, res) {
     const mapsUrl = `https://www.google.com/maps?q=${location.latitude},${location.longitude}`;
     const message = `🚨 EMERGENCY! I need help. This is my current location:\n\n📍 Location: ${address}\n\n🗺️ Map: ${mapsUrl}\n\nTimestamp: ${new Date(timestamp).toLocaleString()}\n\nI'm in danger. Please help!`;
 
-    const results = [];
+    const smsClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
 
-    // Send SMS to each contact via msg91
-    for (const phoneNumber of phoneNumbers) {
-      try {
-        // Format phone number: remove special chars, ensure +91 for India
-        let normalizedPhone = phoneNumber.replace(/[^\d+]/g, '');
-        if (!normalizedPhone.startsWith('+')) {
-          normalizedPhone = normalizedPhone.replace(/^91/, ''); // Remove 91 if present
-          if (!normalizedPhone.startsWith('91')) {
-            normalizedPhone = '91' + normalizedPhone; // Add 91 if not present
-          }
-        }
-        
-        // Remove + for msg91 API
-        normalizedPhone = normalizedPhone.replace('+', '');
-
-        console.log(`Sending SMS to ${normalizedPhone}...`);
-
-        // Call msg91 API
-        const msg91Response = await axios.get('https://api.msg91.com/apisbulk/sendhttp', {
-          params: {
-            authkey: MSG91_AUTH_KEY,
-            mobiles: normalizedPhone,
-            message: message,
-            sender: MSG91_SENDER_ID,
-            route: MSG91_ROUTE,
-            unicode: '1', // Support unicode emojis
-          },
-          timeout: 10000,
-        });
-
-        console.log(`SMS response for ${normalizedPhone}:`, msg91Response.data);
-
-        results.push({
-          phoneNumber,
-          status: 'sent',
-          provider: 'msg91',
-          response: msg91Response.data,
-        });
-      } catch (error) {
-        console.error(`Failed to send SMS to ${phoneNumber}:`, error.message);
-        results.push({
-          phoneNumber,
-          status: 'failed',
-          error: error.message,
-        });
+    const normalizeToE164 = (value) => {
+      const digits = value.replace(/[^\d]/g, '').replace(/^0+/, '');
+      if (digits.startsWith('91')) {
+        return `+${digits}`;
       }
-    }
+      if (digits.length === 10) {
+        return `+91${digits}`;
+      }
+      return `+${digits}`;
+    };
+
+    const normalizedPhones = phoneNumbers.map((phoneNumber) => {
+      const normalized = normalizeToE164(phoneNumber);
+      console.log(`Sending SMS to ${normalized} (raw: ${phoneNumber})...`);
+      return normalized;
+    });
+
+    // Send SMS to all contacts via Twilio
+    const results = await Promise.all(
+      normalizedPhones.map(async (normalizedPhone, index) => {
+        const rawPhone = phoneNumbers[index];
+        try {
+          const response = await smsClient.messages.create({
+            from: TWILIO_PHONE_NUMBER,
+            to: normalizedPhone,
+            body: message,
+          });
+
+          return {
+            phoneNumber: rawPhone,
+            normalizedPhone,
+            status: 'sent',
+            provider: 'twilio',
+            response: {
+              messageId: response.sid,
+              status: response.status,
+            },
+          };
+        } catch (error) {
+          return {
+            phoneNumber: rawPhone,
+            normalizedPhone,
+            status: 'failed',
+            provider: 'twilio',
+            response: {
+              errorMessage: error.message,
+            },
+          };
+        }
+      })
+    );
 
     const sentCount = results.filter(r => r.status === 'sent').length;
     

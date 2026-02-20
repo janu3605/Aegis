@@ -1,6 +1,7 @@
 // SOS Service - Handles emergency alerts
 
 import * as Notifications from 'expo-notifications';
+import * as SMS from 'expo-sms';
 import LocationService from './locationService';
 import StorageService from './storageService';
 import AutomaticSMSService from './automaticSMSService';
@@ -61,13 +62,32 @@ export class SOSService {
       }
 
       // Use automatic SMS service (no user interaction required)
-      const success = await AutomaticSMSService.sendSOSAutomatically(
+      const result = await AutomaticSMSService.sendSOSAutomatically(
         contacts,
         location,
         address
       );
 
-      return success;
+      if (result.success && result.failed.length === 0) {
+        return true;
+      }
+
+      const smsAvailable = await SMS.isAvailableAsync();
+      if (!smsAvailable) {
+        console.warn('SMS composer not available for fallback');
+        return result.success;
+      }
+
+      const mapsUrl = `https://www.google.com/maps?q=${location.latitude},${location.longitude}`;
+      const message = `EMERGENCY! I need help. This is my current location:\n\nLocation: ${
+        address || 'Address unavailable'
+      }\n\nMap: ${mapsUrl}\n\nTimestamp: ${new Date().toLocaleString()}\n\nI'm in danger. Please help!`;
+      const fallbackRecipients = result.failed.length
+        ? result.failed
+        : contacts.map((contact) => contact.phoneNumber);
+
+      const smsResult = await SMS.sendSMSAsync(fallbackRecipients, message);
+      return result.success || smsResult.result === 'sent';
     } catch (error) {
       console.error('Error sending automatic SMS alerts:', error);
       return false;
