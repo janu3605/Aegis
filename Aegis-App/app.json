@@ -19,7 +19,11 @@
         "NSMicrophoneUsageDescription": "Aegis uses the microphone to detect distress keywords for automatic emergency response.",
         "NSContactsUsageDescription": "Aegis needs access to contacts to set up your emergency contact list.",
         "NSPhotoLibraryUsageDescription": "Aegis saves evidence photos to your library during emergencies.",
-        "UIBackgroundModes": ["location", "audio", "fetch"]
+        "UIBackgroundModes": [
+          "location",
+          "audio",
+          "fetch"
+        ]
       }
     },
     "android": {
@@ -42,7 +46,18 @@
         "USE_BIOMETRIC",
         "USE_FINGERPRINT",
         "FOREGROUND_SERVICE",
-        "FOREGROUND_SERVICE_LOCATION"
+        "FOREGROUND_SERVICE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_LOCATION",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_CONTACTS",
+        "android.permission.WRITE_CONTACTS",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT"
       ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
@@ -100,7 +115,9 @@
         {
           "icon": "./assets/images/icon.png",
           "color": "#E63946",
-          "sounds": ["./assets/audio/emergency_alert.mp3"]
+          "sounds": [
+            "./assets/Audio/emergency_alert.mp3"
+          ]
         }
       ]
     ],
@@ -109,9 +126,11 @@
       "reactCompiler": true
     },
     "extra": {
+      "router": {},
       "eas": {
-        "projectId": "aegis-women-safety"
+        "projectId": "aa976c79-a226-4106-8fc2-739e135ab97c"
       }
-    }
+    },
+    "owner": "janu3605"
   }
 }
