@@ -1,6 +1,6 @@
 ﻿// Home Screen - Main Dashboard with SOS button
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -39,7 +39,7 @@ export default function HomeScreen() {
   const [sosPhase, setSOSPhase] = useState<SOSPhase>('idle');
 
   // Alert Mode animation
-  const [flashAnim] = useState(() => new Animated.Value(0));
+  const flashAnim = useRef(new Animated.Value(0)).current;
   const [alertSound, setAlertSound] = useState<Audio.Sound | null>(null);
 
   useEffect(() => {
@@ -77,7 +77,7 @@ export default function HomeScreen() {
     // Reset flash
     flashAnim.stopAnimation();
     flashAnim.setValue(0);
-  }, [alertSound, flashAnim]);
+  }, [alertSound]);
 
   // ═══════════════════════════════════════════
   // ALERT MODE EFFECTS (flash + alarm + vibration)
@@ -461,7 +461,7 @@ export default function HomeScreen() {
             <MaterialIcons name="chevron-right" size={24} color={Colors.textSecondary} />
           </TouchableOpacity>
 
-          <TouchableOpacity
+          {/* <TouchableOpacity
             style={styles.actionCard}
             onPress={() => router.push('/(tabs)/community' as any)}
           >
@@ -471,7 +471,7 @@ export default function HomeScreen() {
               <Text style={styles.actionSubtitle}>View safety reports near you</Text>
             </View>
             <MaterialIcons name="chevron-right" size={24} color={Colors.textSecondary} />
-          </TouchableOpacity>
+          </TouchableOpacity> */}
 
           <TouchableOpacity
             style={styles.actionCard}
@@ -497,7 +497,7 @@ export default function HomeScreen() {
             <MaterialIcons name="chevron-right" size={24} color={Colors.textSecondary} />
           </TouchableOpacity>
 
-          <TouchableOpacity
+          {/* <TouchableOpacity
             style={styles.actionCard}
             onPress={() => router.push('/(tabs)/settings' as any)}
           >
@@ -507,7 +507,7 @@ export default function HomeScreen() {
               <Text style={styles.actionSubtitle}>Configure app preferences</Text>
             </View>
             <MaterialIcons name="chevron-right" size={24} color={Colors.textSecondary} />
-          </TouchableOpacity>
+          </TouchableOpacity> */}
 
           <TouchableOpacity
             style={styles.actionCard}

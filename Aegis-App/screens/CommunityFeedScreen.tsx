@@ -32,8 +32,10 @@ export default function CommunityFeedScreen() {
   useEffect(() => {
     loadReports();
     getCurrentPosition();
+  }, []);
 
-    // Check if we have pre-filled location from navigation
+  // Handle pre-filled location from navigation (separate effect with stable deps)
+  useEffect(() => {
     if (params.prefillLat && params.prefillLng) {
       const prefillLocation: Location = {
         latitude: parseFloat(params.prefillLat as string),
@@ -41,9 +43,9 @@ export default function CommunityFeedScreen() {
         timestamp: Date.now(),
       };
       setCurrentLocation(prefillLocation);
-      setModalVisible(true); // Auto-open the report modal
+      setModalVisible(true);
     }
-  }, [params]);
+  }, [params.prefillLat, params.prefillLng]);
 
   const getCurrentPosition = async () => {
     const location = await LocationService.getCurrentLocation();

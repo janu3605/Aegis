@@ -301,32 +301,35 @@ export class SOSService {
 
       this.activeAlert = alert;
 
-      // ── CHECK INTERNET ──
-      const hasInternet = await this.checkInternetConnection();
+      // ── ALWAYS TRY SMS FIRST (native SMS uses cellular, not internet) ──
+      const address = await LocationService.getAddressFromCoordinates(
+        location.latitude,
+        location.longitude
+      );
 
-      if (hasInternet) {
-        // ── ONLINE PATH: Send SMS + notifications (existing flow) ──
-        console.log('📶 Internet available — sending via SMS');
+      const smsSent = await this.sendSMSAlerts(contacts, location, address || undefined);
 
-        const address = await LocationService.getAddressFromCoordinates(
-          location.latitude,
-          location.longitude
+      if (smsSent) {
+        console.log('✅ SMS sent successfully');
+        await this.sendLocalNotification(
+          '🚨 SOS Alert Sent',
+          `Emergency alerts sent to ${contacts.length} contact(s)`
         );
-
-        const smsSent = await this.sendSMSAlerts(contacts, location, address || undefined);
-
-        if (smsSent) {
-          await this.sendLocalNotification(
-            '🚨 SOS Alert Sent',
-            `Emergency alerts sent to ${contacts.length} contact(s)`
-          );
-        }
-
         this.setPhase('active');
       } else {
-        // ── OFFLINE PATH: BLE broadcast via Nearby Connections ──
-        console.log('📵 No internet — switching to BLE broadcast');
-        await this.triggerBLEFallback(alert, userId);
+        // SMS failed — check internet to decide fallback
+        console.log('⚠️ SMS failed — checking internet for BLE fallback');
+        const hasInternet = await this.checkInternetConnection();
+
+        if (!hasInternet) {
+          // ── OFFLINE PATH: BLE broadcast via Nearby Connections ──
+          console.log('📵 No internet + SMS failed — switching to BLE broadcast');
+          await this.triggerBLEFallback(alert, userId);
+        } else {
+          // SMS failed but we have internet — still mark as active
+          console.log('📶 Internet available but SMS failed — marking active');
+          this.setPhase('active');
+        }
       }
 
       // Save to history
