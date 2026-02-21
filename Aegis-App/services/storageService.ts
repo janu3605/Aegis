@@ -9,6 +9,7 @@ import type {
   DeviceSettings,
   GeofenceRegion,
   SOSAlert,
+  SafetyReport,
   Location as LocationType,
 } from '../types';
 
@@ -204,6 +205,19 @@ export class StorageService {
 
   async getApiKey(service: string): Promise<string | null> {
     return this.getSecureData(`api_key_${service}`);
+  }
+
+  // Safety Reports (local community feed)
+  async getSafetyReports(): Promise<SafetyReport[]> {
+    const reports = await this.getData<SafetyReport[]>(STORAGE_KEYS.SAFETY_REPORTS);
+    return reports || [];
+  }
+
+  async addSafetyReport(report: SafetyReport): Promise<boolean> {
+    const reports = await this.getSafetyReports();
+    reports.unshift(report);
+    const trimmed = reports.slice(0, 100);
+    return this.saveData(STORAGE_KEYS.SAFETY_REPORTS, trimmed);
   }
 
   // Clear all data (for testing or logout)

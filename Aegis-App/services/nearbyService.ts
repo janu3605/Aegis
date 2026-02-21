@@ -1,5 +1,5 @@
 // Nearby Service - Handles BLE Offline SOS via Google Nearby Connections API
-// "Dumb Pipe" architecture: victim broadcasts, bystander relays to Firebase
+// "Dumb Pipe" architecture: victim broadcasts, bystander relays
 
 import { Platform, PermissionsAndroid } from 'react-native';
 import { BLE_CONFIG, STORAGE_KEYS } from '../utils/constants';
@@ -25,6 +25,7 @@ export class NearbyService {
     private onTimeoutCallback: (() => void) | null = null;
     private onSOSDetectedCallback: ((payload: BLESOSPayload) => void) | null = null;
     private connectedEndpoints: Set<string> = new Set();
+    private pendingPeers: Set<string> = new Set();
     private listenerCleanups: Array<() => void> = [];
 
     private constructor() { }
@@ -173,6 +174,9 @@ export class NearbyService {
             // Set up connection listeners for when bystander connects
             this.setupVictimListeners(payloadString);
 
+            // Defensively stop any stale advertising session (e.g. after hot-reload)
+            try { await NearbyConnections.stopAdvertise(); } catch (_) { /* ignore */ }
+
             // Start advertising — makes this phone discoverable to bystanders
             await NearbyConnections.startAdvertise(BLE_CONFIG.ADVERTISE_NAME);
 
@@ -224,11 +228,9 @@ export class NearbyService {
         const unsubInvitation = NearbyConnections.onInvitationReceived?.((event: any) => {
             console.log('Victim: Bystander connection initiated:', event.peerId);
             // Auto-accept all connections (we want anyone to relay our SOS)
-            try {
-                NearbyConnections.acceptConnection(event.peerId);
-            } catch (e) {
+            NearbyConnections.acceptConnection(event.peerId).catch((e: any) => {
                 console.error('Victim: Failed to accept connection:', e);
-            }
+            });
         });
         if (unsubInvitation) this.listenerCleanups.push(unsubInvitation);
 
@@ -238,12 +240,11 @@ export class NearbyService {
             this.connectedEndpoints.add(event.peerId);
 
             // Send the SOS payload to the bystander
-            try {
-                NearbyConnections.sendText(event.peerId, payloadString);
+            NearbyConnections.sendText(event.peerId, payloadString).then(() => {
                 console.log('Victim: SOS payload sent to bystander');
-            } catch (e) {
+            }).catch((e: any) => {
                 console.error('Victim: Failed to send payload:', e);
-            }
+            });
         });
         if (unsubConnected) this.listenerCleanups.push(unsubConnected);
 
@@ -295,6 +296,9 @@ export class NearbyService {
             // Set up discovery listeners
             this.setupBystanderListeners();
 
+            // Defensively stop any stale discovery session (e.g. after hot-reload)
+            try { await NearbyConnections.stopDiscovery(); } catch (_) { /* ignore */ }
+
             // Start discovering — scan for nearby victims
             await NearbyConnections.startDiscovery(BLE_CONFIG.ADVERTISE_NAME);
 
@@ -342,23 +346,33 @@ export class NearbyService {
             console.log('Bystander: SOS signal detected from:', event.peerId);
             console.log('   Name:', event.name);
 
-            // Auto-connect to the victim
-            try {
-                NearbyConnections.requestConnection(event.peerId);
-            } catch (e) {
-                console.error('Bystander: Failed to request connection:', e);
+            // Skip if already connecting/connected to this peer
+            if (this.pendingPeers.has(event.peerId)) {
+                console.log('Bystander: Already connecting to:', event.peerId);
+                return;
             }
+
+            this.pendingPeers.add(event.peerId);
+
+            // Auto-connect to the victim (with retry on failure)
+            NearbyConnections.requestConnection(event.peerId).catch((e: any) => {
+                console.warn('Bystander: requestConnection failed, retrying in 1s...', e);
+                setTimeout(() => {
+                    NearbyConnections.requestConnection(event.peerId).catch((e2: any) => {
+                        console.error('Bystander: requestConnection retry failed:', e2);
+                        this.pendingPeers.delete(event.peerId);
+                    });
+                }, 1000);
+            });
         });
         if (unsubPeerFound) this.listenerCleanups.push(unsubPeerFound);
 
         // When connection invitation is received from victim
         const unsubInvitation = NearbyConnections.onInvitationReceived?.((event: any) => {
             console.log('Bystander: Connection initiated with victim:', event.peerId);
-            try {
-                NearbyConnections.acceptConnection(event.peerId);
-            } catch (e) {
+            NearbyConnections.acceptConnection(event.peerId).catch((e: any) => {
                 console.error('Bystander: Failed to accept connection:', e);
-            }
+            });
         });
         if (unsubInvitation) this.listenerCleanups.push(unsubInvitation);
 
@@ -385,11 +399,9 @@ export class NearbyService {
 
             // Disconnect from victim after receiving
             if (event.peerId) {
-                try {
-                    NearbyConnections.disconnect(event.peerId);
-                } catch (e) {
+                NearbyConnections.disconnect(event.peerId).catch((e: any) => {
                     console.error('Bystander: Failed to disconnect:', e);
-                }
+                });
             }
         });
         if (unsubTextReceived) this.listenerCleanups.push(unsubTextReceived);
@@ -397,6 +409,7 @@ export class NearbyService {
         // When victim goes out of range
         const unsubPeerLost = NearbyConnections.onPeerLost?.((event: any) => {
             console.log('Bystander: Victim signal lost:', event.peerId);
+            this.pendingPeers.delete(event.peerId);
         });
         if (unsubPeerLost) this.listenerCleanups.push(unsubPeerLost);
     }
@@ -522,14 +535,13 @@ export class NearbyService {
         // Disconnect from all endpoints
         if (NearbyConnections) {
             this.connectedEndpoints.forEach((peerId) => {
-                try {
-                    NearbyConnections.disconnect(peerId);
-                } catch (e) {
+                NearbyConnections.disconnect(peerId).catch(() => {
                     // Ignore — endpoint may already be disconnected
-                }
+                });
             });
         }
         this.connectedEndpoints.clear();
+        this.pendingPeers.clear();
     }
 
     /**

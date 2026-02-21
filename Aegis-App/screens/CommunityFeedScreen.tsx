@@ -15,6 +15,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { useLocalSearchParams } from 'expo-router';
 import LocationService from '@/services/locationService';
+import StorageService from '@/services/storageService';
 import { Colors, SUCCESS_MESSAGES } from '@/utils/constants';
 import type { SafetyReport, Location } from '@/types';
 
