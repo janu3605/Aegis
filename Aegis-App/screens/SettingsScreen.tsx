@@ -14,6 +14,8 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import StorageService from '@/services/storageService';
 import VoiceDetectionService from '@/services/voiceDetectionService';
+import NearbyService from '@/services/nearbyService';
+import SOSService from '@/services/sosService';
 import { Colors, SUCCESS_MESSAGES, APP_VERSION } from '@/utils/constants';
 import type { DeviceSettings, UserProfile } from '@/types';
 
@@ -37,10 +39,12 @@ export default function SettingsScreen() {
     email: '',
     phone: '',
   });
+  const [bystanderMode, setBystanderMode] = useState(false);
 
   useEffect(() => {
     loadSettings();
     loadUserProfile();
+    loadBystanderMode();
   }, []);
 
   const loadSettings = async () => {
@@ -75,6 +79,40 @@ export default function SettingsScreen() {
       await VoiceDetectionService.startListening();
     } else {
       VoiceDetectionService.stopListening();
+    }
+  };
+
+  const loadBystanderMode = async () => {
+    const enabled = await NearbyService.isBystanderModeEnabled();
+    setBystanderMode(enabled);
+  };
+
+  const handleToggleBystanderMode = async (value: boolean) => {
+    setBystanderMode(value);
+    await NearbyService.setBystanderModeEnabled(value);
+
+    if (value) {
+      // Start bystander scanning
+      const started = await NearbyService.startBystanderScanning(async (payload) => {
+        // Auto-relay detected SOS to Firebase
+        await SOSService.relayDetectedSOS(payload);
+      });
+      if (started) {
+        Alert.alert(
+          '📡 Bystander Mode Active',
+          'Your phone will now relay SOS signals from nearby phones that have no internet.'
+        );
+      } else {
+        Alert.alert(
+          'BLE Unavailable',
+          'Bluetooth Nearby Connections is not available on this device. A custom dev build is required.'
+        );
+        setBystanderMode(false);
+        await NearbyService.setBystanderModeEnabled(false);
+      }
+    } else {
+      await NearbyService.stopBystanderScanning();
+      Alert.alert('Bystander Mode Off', 'Stopped scanning for nearby SOS signals.');
     }
   };
 
@@ -200,6 +238,7 @@ export default function SettingsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Safety Features</Text>
 
+
           <View style={styles.settingItem}>
             <View style={styles.settingInfo}>
               <Text style={styles.settingLabel}>🔒 Stealth Mode</Text>
@@ -271,9 +310,37 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        {/* BLE Bystander Mode Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>📡 Offline SOS Relay</Text>
+
+          <View style={styles.settingItem}>
+            <View style={styles.settingInfo}>
+              <Text style={styles.settingLabel}>🤝 Bystander Mode</Text>
+              <Text style={styles.settingDescription}>
+                Passively relay SOS signals from nearby phones without internet via Bluetooth
+              </Text>
+            </View>
+            <Switch
+              value={bystanderMode}
+              onValueChange={handleToggleBystanderMode}
+              trackColor={{ false: '#767577', true: Colors.primary }}
+            />
+          </View>
+
+          {bystanderMode && (
+            <View style={styles.bystanderInfoCard}>
+              <Text style={styles.bystanderInfoText}>
+                ✅ Scanning for nearby SOS signals. Your phone will automatically relay emergency data to the server.
+              </Text>
+            </View>
+          )}
+        </View>
+
         {/* Permissions Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Permissions</Text>
+
 
           <View style={styles.settingItem}>
             <View style={styles.settingInfo}>
@@ -307,6 +374,7 @@ export default function SettingsScreen() {
         {/* Night Mode Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Night Mode</Text>
+
 
           <View style={styles.settingItem}>
             <View style={styles.settingInfo}>
@@ -346,6 +414,7 @@ export default function SettingsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Data & Privacy</Text>
 
+
           <TouchableOpacity style={styles.dangerButton} onPress={handleClearData}>
             <Text style={styles.dangerButtonText}>🗑️ Clear All Data</Text>
           </TouchableOpacity>
@@ -354,6 +423,7 @@ export default function SettingsScreen() {
         {/* About Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>About</Text>
+
 
           <View style={styles.aboutCard}>
             <Text style={styles.aboutTitle}>Aegis - Women Safety App</Text>
@@ -547,5 +617,19 @@ const styles = StyleSheet.create({
   aboutCopyright: {
     fontSize: 12,
     color: Colors.textSecondary,
+  },
+
+  // Bystander Mode
+  bystanderInfoCard: {
+    backgroundColor: '#E8F5E9',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: -8,
+    marginBottom: 12,
+  },
+  bystanderInfoText: {
+    fontSize: 13,
+    color: '#2E7D32',
+    lineHeight: 18,
   },
 });

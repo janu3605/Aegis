@@ -24,6 +24,11 @@
           "audio",
           "fetch"
         ]
+        "UIBackgroundModes": [
+          "location",
+          "audio",
+          "fetch"
+        ]
       }
     },
     "android": {
@@ -45,6 +50,13 @@
         "VIBRATE",
         "USE_BIOMETRIC",
         "USE_FINGERPRINT",
+        "BLUETOOTH",
+        "BLUETOOTH_ADMIN",
+        "BLUETOOTH_SCAN",
+        "BLUETOOTH_ADVERTISE",
+        "BLUETOOTH_CONNECT",
+        "ACCESS_WIFI_STATE",
+        "CHANGE_WIFI_STATE",
         "FOREGROUND_SERVICE",
         "FOREGROUND_SERVICE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION",

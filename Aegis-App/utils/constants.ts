@@ -5,23 +5,23 @@ export const Colors = {
   primary: '#E63946',        // Red - Emergency/Danger
   primaryDark: '#C1121F',
   primaryLight: '#FF6B6B',
-  
+
   // Secondary Colors
   secondary: '#457B9D',      // Blue - Trust/Safety
   secondaryDark: '#1D3557',
   secondaryLight: '#A8DADC',
-  
+
   // Status Colors
   success: '#06D6A0',
   warning: '#FFB703',
   danger: '#E63946',
   info: '#457B9D',
-  
+
   // Safety Levels
   safetyHigh: '#06D6A0',     // Green - Safe
   safetyMedium: '#FFB703',   // Yellow - Caution
   safetyLow: '#E63946',      // Red - Unsafe
-  
+
   // Neutral Colors
   background: '#F8F9FA',
   backgroundDark: '#1A1A1A',
@@ -33,7 +33,7 @@ export const Colors = {
   textSecondary: '#6C757D',
   border: '#DEE2E6',
   borderDark: '#495057',
-  
+
   // Overlay
   overlay: 'rgba(0, 0, 0, 0.5)',
   overlayLight: 'rgba(0, 0, 0, 0.3)',
@@ -71,7 +71,7 @@ export const BorderRadius = {
 // SOS Constants
 export const SOS_CONFIG = {
   COUNTDOWN_DURATION: 5, // seconds before SOS is sent
-  DEFAULT_MESSAGE: "🚨 EMERGENCY! I need help. This is my current location:",
+  DEFAULT_MESSAGE: "EMERGENCY SOS! I need help. This is my current location:",
   AUTO_CALL_DELAY: 3000, // ms delay before auto-calling emergency contact
   LOCATION_UPDATE_INTERVAL: 10000, // Update location every 10 seconds during active SOS
   MAX_RETRY_ATTEMPTS: 3,
@@ -160,6 +160,16 @@ export const COMMUNITY_CONFIG = {
   MIN_SEVERITY_TO_NOTIFY: 'medium' as const,
 };
 
+// BLE Offline SOS ("Dumb Pipe")
+export const BLE_CONFIG = {
+  SERVICE_ID: 'com.aegis.sos.nearby',  // Nearby Connections service ID
+  ADVERTISE_NAME: 'AEGIS-SOS',         // BLE advertise display name
+  TIMEOUT_MS: 30000,                    // 30 seconds before Alert Mode
+  PAYLOAD_DELIMITER: '|',              // userId|lat|lng|timestamp
+  ALERT_MODE_FLASH_INTERVAL: 500,      // ms between red/white flashes
+  ALERT_MODE_ALARM_LOOP: true,
+};
+
 // AI Chatbot
 export const AI_CONFIG = {
   MODEL: 'gemini-1.5-flash',
@@ -186,6 +196,7 @@ export const STORAGE_KEYS = {
   BEHAVIOR_PATTERNS: '@aegis_behavior_patterns',
   LAST_LOCATION: '@aegis_last_location',
   CHAT_HISTORY: '@aegis_chat_history',
+  BYSTANDER_MODE: '@aegis_bystander_mode',
 };
 
 // API Endpoints (placeholder - update with your backend)
@@ -207,7 +218,7 @@ export const FEATURES = {
   BUDDY_SYSTEM: true,
   COMMUNITY_FEED: true,
   AR_NAVIGATION: false, // Coming soon
-  MESH_NETWORK: false, // Coming soon
+  MESH_NETWORK: true,   // BLE Offline SOS via Nearby Connections
   PATTERN_RECOGNITION: false, // Coming soon
 };
 

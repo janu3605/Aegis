@@ -1,17 +1,41 @@
 // SOS Service - Handles emergency alerts
 
-import * as Notifications from 'expo-notifications';
+import NetInfo from '@react-native-community/netinfo';
+import Constants from 'expo-constants';
+import { PermissionsAndroid, Linking, Platform } from 'react-native';
+import { sendSMS as sendNativeSMS } from '../modules/expo-sos-module';
+
+// expo-notifications triggers a fatal console.error in Expo Go SDK 53+
+// (side-effect in DevicePushTokenAutoRegistration.fx.js).
+// We skip loading it entirely in Expo Go and use stubs instead.
+let Notifications: any;
+if (Constants.appOwnership !== 'expo') {
+  Notifications = require('expo-notifications');
+} else {
+  Notifications = {
+    setNotificationHandler: () => { },
+    scheduleNotificationAsync: async (opts: any) => console.log('[Notification]', opts?.content?.title),
+    getPermissionsAsync: async () => ({ status: 'granted' }),
+    requestPermissionsAsync: async () => ({ status: 'granted' }),
+    AndroidNotificationPriority: { MAX: 'max' },
+  };
+}
 import * as SMS from 'expo-sms';
 import LocationService from './locationService';
 import StorageService from './storageService';
 import AutomaticSMSService from './automaticSMSService';
-import { SOS_CONFIG } from '../utils/constants';
-import type { SOSAlert, EmergencyContact, Location as LocationType } from '../types';
+import NearbyService from './nearbyService';
+import { SOS_CONFIG, BLE_CONFIG } from '../utils/constants';
+import type { SOSAlert, EmergencyContact, Location as LocationType, BLESOSPayload } from '../types';
+
+export type SOSPhase = 'idle' | 'countdown' | 'sending' | 'ble-broadcasting' | 'alert-mode' | 'active' | 'resolved';
 
 export class SOSService {
   private static instance: SOSService;
   private activeAlert: SOSAlert | null = null;
   private countdownTimer: ReturnType<typeof setInterval> | null = null;
+  private currentPhase: SOSPhase = 'idle';
+  private onPhaseChange: ((phase: SOSPhase) => void) | null = null;
 
   private constructor() {
     this.setupNotifications();
@@ -40,11 +64,58 @@ export class SOSService {
   }
 
   /**
-   * Check if SMS is available (for backward compatibility)
+   * Send SMS using fallback (Linking API) if Native fails or permissions denied
    */
-  async isSMSAvailable(): Promise<boolean> {
-    // Automatic SMS is always available via Vercel endpoint
-    return true;
+  private async fallbackToSMSApp(phoneNumbers: string[], message: string): Promise<boolean> {
+    try {
+      console.log('Falling back to default SMS app');
+      // Use ; or , depending on the device. Linking to multiple numbers 
+      // is most robust with ; separator on Android typically
+      const numberString = phoneNumbers.join(';');
+      const url = `sms:${numberString}?body=${encodeURIComponent(message)}`;
+
+      const canOpen = await Linking.canOpenURL(url);
+      if (canOpen) {
+        await Linking.openURL(url);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Error opening SMS app:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Send resolution SMS using native module with fallback (same pattern as sendSMSAlerts)
+   */
+  private async sendResolutionSMS(phoneNumbers: string[], message: string): Promise<boolean> {
+    try {
+      if (Platform.OS === 'android') {
+        const granted = await PermissionsAndroid.check(
+          PermissionsAndroid.PERMISSIONS.SEND_SMS
+        );
+
+        if (granted) {
+          try {
+            const result = await sendNativeSMS(phoneNumbers, message);
+            if (result) return true;
+          } catch (nativeError) {
+            console.error('Native SMS failed for resolution:', nativeError);
+          }
+        }
+
+        return await this.fallbackToSMSApp(phoneNumbers, message);
+      } else {
+        const isAvailable = await SMS.isAvailableAsync();
+        if (!isAvailable) return false;
+        const { result } = await SMS.sendSMSAsync(phoneNumbers, message);
+        return result === 'sent';
+      }
+    } catch (error) {
+      console.error('Error sending resolution SMS:', error);
+      return false;
+    }
   }
 
   /**
@@ -86,8 +157,48 @@ export class SOSService {
         ? result.failed
         : contacts.map((contact) => contact.phoneNumber);
 
-      const smsResult = await SMS.sendSMSAsync(fallbackRecipients, message);
-      return result.success || smsResult.result === 'sent';
+      if (Platform.OS === 'android') {
+        // 1. Request Runtime Permission for SEND_SMS
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.SEND_SMS,
+          {
+            title: 'Emergency SMS Permission',
+            message: 'Aegis needs to send automatic SMS to your emergency contacts when SOS is triggered.',
+            buttonNeutral: 'Ask Me Later',
+            buttonNegative: 'Cancel',
+            buttonPositive: 'OK',
+          }
+        );
+
+        if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+          // 2. Call our Expo Native Module
+          console.log('SEND_SMS permission granted, sending Native SMS silently...');
+          try {
+            const result = await sendNativeSMS(phoneNumbers, message);
+            if (result) {
+              console.log('Native SMS sent successfully.');
+              return true;
+            }
+          } catch (nativeError) {
+            console.error('Native SMS sending failed:', nativeError);
+            // Fallthrough to fallback
+          }
+        } else {
+          console.log('SEND_SMS permission denied.');
+        }
+
+        // 3. Fallback to SMS App via Linking if permissions denied or Native Module fails
+        return await this.fallbackToSMSApp(phoneNumbers, message);
+      } else {
+        // Non-Android environments (web/ios) - fallback to expo-sms if available
+        const isAvailable = await SMS.isAvailableAsync();
+        if (!isAvailable) {
+          console.warn('SMS not available on this device');
+          return false;
+        }
+        const { result } = await SMS.sendSMSAsync(phoneNumbers, message);
+        return result === 'sent';
+      }
     } catch (error) {
       console.error('Error sending automatic SMS alerts:', error);
       return false;
@@ -117,33 +228,77 @@ export class SOSService {
     }
   }
 
+  // ═══════════════════════════════════════════
+  // PHASE MANAGEMENT
+  // ═══════════════════════════════════════════
+
+  /**
+   * Set a callback for phase changes (UI listens to this)
+   */
+  setOnPhaseChange(callback: (phase: SOSPhase) => void): void {
+    this.onPhaseChange = callback;
+  }
+
+  /**
+   * Get the current SOS phase
+   */
+  getCurrentPhase(): SOSPhase {
+    return this.currentPhase;
+  }
+
+  /**
+   * Update SOS phase and notify listeners
+   */
+  private setPhase(phase: SOSPhase): void {
+    this.currentPhase = phase;
+    this.onPhaseChange?.(phase);
+  }
+
+  // ═══════════════════════════════════════════
+  // INTERNET CHECK
+  // ═══════════════════════════════════════════
+
+  /**
+   * Check if the device has internet connectivity using NetInfo
+   */
+  async checkInternetConnection(): Promise<boolean> {
+    try {
+      const state = await NetInfo.fetch();
+      return !!(state.isConnected && state.isInternetReachable);
+    } catch (error) {
+      console.warn('NetInfo check failed, assuming no internet:', error);
+      return false;
+    }
+  }
+
+  // ═══════════════════════════════════════════
+  // MAIN SOS TRIGGER
+  // ═══════════════════════════════════════════
+
   /**
    * Trigger SOS Alert
+   * Flow: SOS → Check internet → Online: SMS/notify | Offline: BLE broadcast → Alert Mode
    */
   async triggerSOS(
     type: 'manual' | 'auto' | 'voice-triggered' | 'pattern-detected' = 'manual',
     userId: string = 'default-user'
   ): Promise<SOSAlert | null> {
     try {
+      this.setPhase('sending');
+
       // Get current location
       const location = await LocationService.getCurrentLocation();
-      
+
       if (!location) {
         throw new Error('Unable to get current location');
       }
 
       // Get emergency contacts
       const contacts = await StorageService.getEmergencyContacts();
-      
+
       if (contacts.length === 0) {
         throw new Error('No emergency contacts configured');
       }
-
-      // Get address
-      const address = await LocationService.getAddressFromCoordinates(
-        location.latitude,
-        location.longitude
-      );
 
       // Create SOS alert
       const alert: SOSAlert = {
@@ -159,14 +314,32 @@ export class SOSService {
 
       this.activeAlert = alert;
 
-      // Send SMS alerts
-      const smsSent = await this.sendSMSAlerts(contacts, location, address || undefined);
+      // ── CHECK INTERNET ──
+      const hasInternet = await this.checkInternetConnection();
 
-      if (smsSent) {
-        await this.sendLocalNotification(
-          '🚨 SOS Alert Sent',
-          `Emergency alerts sent to ${contacts.length} contact(s)`
+      if (hasInternet) {
+        // ── ONLINE PATH: Send SMS + notifications (existing flow) ──
+        console.log('📶 Internet available — sending via SMS');
+
+        const address = await LocationService.getAddressFromCoordinates(
+          location.latitude,
+          location.longitude
         );
+
+        const smsSent = await this.sendSMSAlerts(contacts, location, address || undefined);
+
+        if (smsSent) {
+          await this.sendLocalNotification(
+            '🚨 SOS Alert Sent',
+            `Emergency alerts sent to ${contacts.length} contact(s)`
+          );
+        }
+
+        this.setPhase('active');
+      } else {
+        // ── OFFLINE PATH: BLE broadcast via Nearby Connections ──
+        console.log('📵 No internet — switching to BLE broadcast');
+        await this.triggerBLEFallback(alert, userId);
       }
 
       // Save to history
@@ -178,11 +351,104 @@ export class SOSService {
       return alert;
     } catch (error) {
       console.error('Error triggering SOS:', error);
+      this.setPhase('idle');
       await this.sendLocalNotification(
         '⚠️ SOS Alert Failed',
         error instanceof Error ? error.message : 'Unknown error'
       );
       return null;
+    }
+  }
+
+  // ═══════════════════════════════════════════
+  // BLE FALLBACK (OFFLINE PATH)
+  // ═══════════════════════════════════════════
+
+  /**
+   * Start BLE broadcast when no internet is available
+   * After TIMEOUT_MS with no relay → triggers Alert Mode
+   */
+  private async triggerBLEFallback(alert: SOSAlert, userId: string): Promise<void> {
+    this.setPhase('ble-broadcasting');
+
+    const payload: BLESOSPayload = {
+      userId,
+      latitude: alert.location.latitude,
+      longitude: alert.location.longitude,
+      timestamp: Date.now(),
+    };
+
+    const success = await NearbyService.startVictimBroadcast(
+      payload,
+      // onRelayed — bystander picked up and relayed our SOS
+      () => {
+        console.log('✅ SOS relayed by a bystander!');
+        this.setPhase('active');
+        this.sendLocalNotification(
+          '✅ SOS Relayed',
+          'A nearby phone picked up your SOS and relayed it to emergency services'
+        );
+      },
+      // onTimeout — no bystander found within 30s → Alert Mode
+      () => {
+        console.log('⏰ BLE timeout — entering Alert Mode');
+        this.activateAlertMode();
+      },
+    );
+
+    if (!success) {
+      console.warn('BLE broadcast failed — going straight to Alert Mode');
+      this.activateAlertMode();
+    }
+  }
+
+  // ═══════════════════════════════════════════
+  // ALERT MODE (Last Resort — Hardware Alarm)
+  // ═══════════════════════════════════════════
+
+  /**
+   * Activate Alert Mode — the phone itself becomes the distress beacon
+   * Flash screen + loud alarm + vibration + flashlight
+   */
+  activateAlertMode(): void {
+    this.setPhase('alert-mode');
+    console.log('🚨 ALERT MODE ACTIVATED — phone becoming distress beacon');
+    // UI listens to this phase change and renders the Alert Mode overlay
+    // (screen flash, audio alarm, haptics, flashlight handled in HomeScreen)
+  }
+
+  /**
+   * Deactivate Alert Mode
+   */
+  deactivateAlertMode(): void {
+    if (this.currentPhase === 'alert-mode') {
+      this.setPhase('active');
+      NearbyService.stopVictimBroadcast();
+    }
+  }
+
+  // ═══════════════════════════════════════════
+  // BYSTANDER RELAY (called when this phone relays another's SOS)
+  // ═══════════════════════════════════════════
+
+  /**
+   * Relay a detected SOS payload (bystander action)
+   * Without Firebase: shows alert with victim's location so bystander can call emergency services
+   */
+  async relayDetectedSOS(payload: BLESOSPayload): Promise<boolean> {
+    try {
+      const mapsUrl = `https://maps.google.com/?q=${payload.latitude},${payload.longitude}`;
+      console.log('📡 Bystander: SOS detected from', payload.userId);
+      console.log('📍 Location:', mapsUrl);
+
+      await this.sendLocalNotification(
+        '🚨 Nearby SOS Detected!',
+        `Someone nearby needs help! Location: ${payload.latitude.toFixed(4)}, ${payload.longitude.toFixed(4)}`
+      );
+      return true;
+    } catch (error) {
+      console.error('Error relaying SOS:', error);
+      return false;
     }
   }
 
@@ -237,21 +503,19 @@ export class SOSService {
     try {
       this.activeAlert.status = 'resolved';
       await StorageService.saveSOSAlert(this.activeAlert);
-      
+
+      // Clean up BLE if active
+      await NearbyService.stopVictimBroadcast();
+
       // Stop background tracking
       await LocationService.stopBackgroundTracking();
 
-      // Send update to contacts
+      // Send resolution SMS to contacts using the same native path as SOS alerts
       const contacts = await StorageService.getEmergencyContacts();
       if (contacts.length > 0) {
-        const location = await LocationService.getCurrentLocation();
-        if (location) {
-          await AutomaticSMSService.sendSOSAutomatically(
-            contacts,
-            location,
-            '✅ SafeAlert Resolved - I\'m safe now. Thank you for your concern.'
-          );
-        }
+        const phoneNumbers = contacts.map((c) => c.phoneNumber);
+        const message = 'I am safe now. The emergency has been resolved. Thank you for your concern.';
+        await this.sendResolutionSMS(phoneNumbers, message);
       }
 
       await this.sendLocalNotification(
@@ -260,6 +524,7 @@ export class SOSService {
       );
 
       this.activeAlert = null;
+      this.setPhase('resolved');
       return true;
     } catch (error) {
       console.error('Error resolving SOS alert:', error);
@@ -278,11 +543,15 @@ export class SOSService {
     try {
       this.activeAlert.status = 'cancelled';
       await StorageService.saveSOSAlert(this.activeAlert);
-      
+
       // Stop background tracking
       await LocationService.stopBackgroundTracking();
 
+      // Clean up BLE if active
+      await NearbyService.stopVictimBroadcast();
+
       this.activeAlert = null;
+      this.setPhase('idle');
       return true;
     } catch (error) {
       console.error('Error cancelling SOS alert:', error);

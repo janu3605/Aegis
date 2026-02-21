@@ -192,3 +192,6 @@ yarn-error.*
 *.tsbuildinfo
 
 # @end expo-cli
+# Ignore local Expo module Android build artifacts
+/modules/expo-sos-module/android/build/
+/modules/expo-sos-module/android/.gradle/
