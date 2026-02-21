@@ -86,6 +86,13 @@ export default function SettingsScreen() {
       const started = await NearbyService.startBystanderScanning(async (payload) => {
         // Auto-relay detected SOS to Firebase
         await SOSService.relayDetectedSOS(payload);
+        // Show visible alert on bystander phone
+        const mapsUrl = `https://maps.google.com/?q=${payload.latitude},${payload.longitude}`;
+        Alert.alert(
+          '🚨 SOS Received!',
+          `Someone nearby needs help!\n\nLocation: ${payload.latitude.toFixed(4)}, ${payload.longitude.toFixed(4)}\n\nMap: ${mapsUrl}`,
+          [{ text: 'OK' }]
+        );
       });
       if (started) {
         Alert.alert(

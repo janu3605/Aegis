@@ -488,17 +488,22 @@ export class SOSService {
       // Stop background tracking
       await LocationService.stopBackgroundTracking();
 
-      // Send resolution SMS to contacts using the same native path as SOS alerts
+      // Send resolution SMS to contacts — only if cellular radio is available
+      const hasInternet = await this.checkInternetConnection();
       const contacts = await StorageService.getEmergencyContacts();
-      if (contacts.length > 0) {
+      if (contacts.length > 0 && hasInternet) {
         const phoneNumbers = contacts.map((c) => c.phoneNumber);
         const message = 'I am safe now. The emergency has been resolved. Thank you for your concern.';
         await this.sendResolutionSMS(phoneNumbers, message);
+      } else if (contacts.length > 0 && !hasInternet) {
+        console.log('No connectivity — resolution SMS will be skipped (radio off)');
       }
 
       await this.sendLocalNotification(
         '✅ Alert Resolved',
-        'Emergency contacts have been notified that you are safe'
+        hasInternet
+          ? 'Emergency contacts have been notified that you are safe'
+          : 'Alert resolved. Turn off airplane mode to notify your emergency contacts.'
       );
 
       this.activeAlert = null;
