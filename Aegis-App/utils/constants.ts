@@ -196,6 +196,7 @@ export const STORAGE_KEYS = {
   LAST_LOCATION: '@aegis_last_location',
   CHAT_HISTORY: '@aegis_chat_history',
   BYSTANDER_MODE: '@aegis_bystander_mode',
+  SAFETY_REPORTS: '@aegis_safety_reports',
 };
 
 // API Endpoints (placeholder - update with your backend)

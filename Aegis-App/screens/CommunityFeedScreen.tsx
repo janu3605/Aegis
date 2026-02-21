@@ -13,8 +13,8 @@ import {
   Modal,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import FirebaseService from '@/services/firebaseService';
 import LocationService from '@/services/locationService';
+import StorageService from '@/services/storageService';
 import { Colors, SUCCESS_MESSAGES } from '@/utils/constants';
 import type { SafetyReport, Location } from '@/types';
 
@@ -42,7 +42,7 @@ export default function CommunityFeedScreen() {
 
   const loadReports = async () => {
     try {
-      const loadedReports = await FirebaseService.getSafetyReports();
+      const loadedReports = await StorageService.getSafetyReports();
       setReports(loadedReports);
     } catch (error) {
       console.error('Failed to load reports:', error);
@@ -73,8 +73,9 @@ export default function CommunityFeedScreen() {
     }
 
     try {
-      const report: Omit<SafetyReport, 'id'> = {
-        reportedBy: 'current_user', // Replace with actual user ID from auth
+      const report: SafetyReport = {
+        id: `report_${Date.now()}`,
+        reportedBy: 'current_user',
         type: formData.type,
         description: formData.description.trim(),
         location: currentLocation,
@@ -84,7 +85,7 @@ export default function CommunityFeedScreen() {
         downvotes: 0,
       };
 
-      await FirebaseService.submitSafetyReport(report);
+      await StorageService.addSafetyReport(report);
       Alert.alert('Success', SUCCESS_MESSAGES.REPORT_SUBMITTED);
       setModalVisible(false);
       loadReports();
