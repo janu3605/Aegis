@@ -14,7 +14,6 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useLocalSearchParams } from 'expo-router';
-import FirebaseService from '@/services/firebaseService';
 import LocationService from '@/services/locationService';
 import { Colors, SUCCESS_MESSAGES } from '@/utils/constants';
 import type { SafetyReport, Location } from '@/types';

@@ -14,6 +14,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router, useFocusEffect } from 'expo-router';
 import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
@@ -38,9 +39,8 @@ export default function HomeScreen() {
   const [sosPhase, setSOSPhase] = useState<SOSPhase>('idle');
 
   // Alert Mode animation
-  const flashAnim = useRef(new Animated.Value(0)).current;
-  const flashTimer = useRef<NodeJS.Timeout | null>(null);
-  const soundRef = useRef<Audio.Sound | null>(null);
+  const [flashAnim] = useState(() => new Animated.Value(0));
+  const [alertSound, setAlertSound] = useState<Audio.Sound | null>(null);
 
   useEffect(() => {
     loadInitialData();
@@ -64,26 +64,36 @@ export default function HomeScreen() {
     }, [])
   );
 
-  // Start/stop Alert Mode effects based on phase
-  useEffect(() => {
-    if (sosPhase === 'alert-mode') {
-      startAlertModeEffects();
-    } else {
-      stopAlertMode();
+  const stopAlertMode = useCallback(() => {
+    // Stop vibration
+    Vibration.cancel();
+
+    // Stop sound
+    if (alertSound) {
+      void alertSound.unloadAsync();
+      setAlertSound(null);
     }
-  }, [sosPhase]);
+
+    // Reset flash
+    flashAnim.stopAnimation();
+    flashAnim.setValue(0);
+  }, [alertSound, flashAnim]);
 
   // ═══════════════════════════════════════════
   // ALERT MODE EFFECTS (flash + alarm + vibration)
   // ═══════════════════════════════════════════
 
-  const startAlertModeEffects = async () => {
+  const startAlertModeEffects = useCallback(async () => {
     // Start screen flash animation
     const flashLoop = () => {
       Animated.sequence([
         Animated.timing(flashAnim, { toValue: 1, duration: 250, useNativeDriver: false }),
         Animated.timing(flashAnim, { toValue: 0, duration: 250, useNativeDriver: false }),
-      ]).start(() => flashLoop());
+      ]).start(({ finished }) => {
+        if (finished) {
+          flashLoop();
+        }
+      });
     };
     flashLoop();
 
@@ -91,22 +101,17 @@ export default function HomeScreen() {
     Vibration.vibrate([500, 500, 500, 500], true);
 
     // Start haptic feedback
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-  };
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+  }, [flashAnim]);
 
-  const stopAlertMode = () => {
-    // Stop vibration
-    Vibration.cancel();
-
-    // Stop sound
-    if (soundRef.current) {
-      soundRef.current.unloadAsync();
-      soundRef.current = null;
+  // Start/stop Alert Mode effects based on phase
+  useEffect(() => {
+    if (sosPhase === 'alert-mode') {
+      void startAlertModeEffects();
+    } else {
+      stopAlertMode();
     }
-
-    // Reset flash
-    flashAnim.setValue(0);
-  };
+  }, [sosPhase, startAlertModeEffects, stopAlertMode]);
 
   const loadInitialData = async () => {
     try {
@@ -438,74 +443,74 @@ export default function HomeScreen() {
             style={styles.actionCard}
             onPress={() => router.push('/(tabs)/contacts' as any)}
           >
-            <Text style={styles.actionIcon}>C</Text>
+            <MaterialIcons name="contacts" size={28} color={Colors.primary} style={styles.actionIcon} />
             <View style={styles.actionContent}>
               <Text style={styles.actionTitle}>Emergency Contacts</Text>
               <Text style={styles.actionSubtitle}>
                 {emergencyContacts.length} contact{emergencyContacts.length !== 1 ? 's' : ''} added
               </Text>
             </View>
-            <Text style={styles.actionChevron}>{'>'}</Text>
+            <MaterialIcons name="chevron-right" size={24} color={Colors.textSecondary} />
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.actionCard}
             onPress={() => router.push('/(tabs)/community' as any)}
           >
-            <Text style={styles.actionIcon}>F</Text>
+            <MaterialIcons name="forum" size={28} color={Colors.secondary} style={styles.actionIcon} />
             <View style={styles.actionContent}>
               <Text style={styles.actionTitle}>Community Feed</Text>
               <Text style={styles.actionSubtitle}>View safety reports near you</Text>
             </View>
-            <Text style={styles.actionChevron}>›</Text>
+            <MaterialIcons name="chevron-right" size={24} color={Colors.textSecondary} />
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.actionCard}
             onPress={() => router.push('/location-safety-check' as any)}
           >
-            <Text style={styles.actionIcon}>🛡️</Text>
+            <MaterialIcons name="verified-user" size={28} color={Colors.success} style={styles.actionIcon} />
             <View style={styles.actionContent}>
               <Text style={styles.actionTitle}>Check Location Safety</Text>
               <Text style={styles.actionSubtitle}>Analyze safety of any location</Text>
             </View>
-            <Text style={styles.actionChevron}>›</Text>
+            <MaterialIcons name="chevron-right" size={24} color={Colors.textSecondary} />
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.actionCard}
             onPress={handleFakeCall}
           >
-            <Text style={styles.actionIcon}>Call</Text>
+            <MaterialIcons name="phone-in-talk" size={28} color={Colors.warning} style={styles.actionIcon} />
             <View style={styles.actionContent}>
               <Text style={styles.actionTitle}>Fake Call</Text>
               <Text style={styles.actionSubtitle}>Instant distraction mode</Text>
             </View>
-            <Text style={styles.actionChevron}>{'>'}</Text>
+            <MaterialIcons name="chevron-right" size={24} color={Colors.textSecondary} />
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.actionCard}
             onPress={() => router.push('/(tabs)/settings' as any)}
           >
-            <Text style={styles.actionIcon}>S</Text>
+            <MaterialIcons name="settings" size={28} color={Colors.info} style={styles.actionIcon} />
             <View style={styles.actionContent}>
               <Text style={styles.actionTitle}>Settings</Text>
               <Text style={styles.actionSubtitle}>Configure app preferences</Text>
             </View>
-            <Text style={styles.actionChevron}>{'>'}</Text>
+            <MaterialIcons name="chevron-right" size={24} color={Colors.textSecondary} />
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.actionCard}
             onPress={() => router.push('/stealthNews' as any)}
           >
-            <Text style={styles.actionIcon}>N</Text>
+            <MaterialIcons name="article" size={28} color={Colors.secondaryDark} style={styles.actionIcon} />
             <View style={styles.actionContent}>
               <Text style={styles.actionTitle}>Stealth News</Text>
               <Text style={styles.actionSubtitle}>Disguised news mode with hidden SOS trigger</Text>
             </View>
-            <Text style={styles.actionChevron}>{'>'}</Text>
+            <MaterialIcons name="chevron-right" size={24} color={Colors.textSecondary} />
           </TouchableOpacity>
         </View>
 
@@ -801,8 +806,9 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   actionIcon: {
-    fontSize: 32,
     marginRight: 16,
+    width: 28,
+    textAlign: 'center' as const,
   },
   actionContent: {
     flex: 1,
@@ -815,10 +821,6 @@ const styles = StyleSheet.create({
   },
   actionSubtitle: {
     fontSize: 14,
-    color: Colors.textSecondary,
-  },
-  actionChevron: {
-    fontSize: 24,
     color: Colors.textSecondary,
   },
   locationCard: {

@@ -1,47 +1,13 @@
-// Firebase Service - Handles real-time database operations
+// Firebase Service - Offline stub (Firebase removed)
+// Returns mock data for all operations. Replace with a custom backend when ready.
 
-import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
-import {
-  getDatabase,
-  ref,
-  set,
-  get,
-  push,
-  onValue,
-  off,
-  query,
-  orderByChild,
-  limitToLast,
-  Database,
-} from 'firebase/database';
-import {
-  getStorage,
-  ref as storageRef,
-  uploadBytes,
-  getDownloadURL,
-  FirebaseStorage,
-} from 'firebase/storage';
 import type { SafetyReport, BuddySession, BLESOSPayload, BLERelayRecord } from '../types';
-
-// Firebase configuration (replace with your actual config)
-const firebaseConfig = {
-  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || 'your-api-key',
-  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN || 'your-auth-domain',
-  databaseURL: process.env.EXPO_PUBLIC_FIREBASE_DATABASE_URL || 'your-database-url',
-  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID || 'your-project-id',
-  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET || 'your-storage-bucket',
-  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || 'your-sender-id',
-  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID || 'your-app-id',
-};
 
 export class FirebaseService {
   private static instance: FirebaseService;
-  private app: FirebaseApp | null = null;
-  private database: Database | null = null;
-  private storage: FirebaseStorage | null = null;
 
   private constructor() {
-    this.initialize();
+    console.log('FirebaseService running in offline mode (Firebase removed).');
   }
 
   static getInstance(): FirebaseService {
@@ -51,110 +17,19 @@ export class FirebaseService {
     return FirebaseService.instance;
   }
 
-  /**
-   * Check if Firebase config is valid
-   */
-  private isConfigValid(): boolean {
-    return (
-      firebaseConfig.apiKey !== 'your-api-key' &&
-      firebaseConfig.databaseURL !== 'your-database-url' &&
-      !firebaseConfig.databaseURL.includes('YOUR')
-    );
+  // ═══════════════════════════════════════════
+  // SAFETY REPORTS
+  // ═══════════════════════════════════════════
+
+  async submitSafetyReport(_report: Omit<SafetyReport, 'id'>): Promise<string | null> {
+    console.warn('FirebaseService offline: report not submitted.');
+    return null;
   }
 
-  /**
-   * Initialize Firebase
-   */
-  private initialize() {
-    try {
-      // Only initialize if config is valid
-      if (!this.isConfigValid()) {
-        console.warn('Firebase not configured. Using offline mode. Add your Firebase config to enable real-time features.');
-        return;
-      }
-
-      if (getApps().length === 0) {
-        this.app = initializeApp(firebaseConfig);
-        this.database = getDatabase(this.app);
-        this.storage = getStorage(this.app);
-        console.log('Firebase initialized successfully');
-      } else {
-        this.app = getApps()[0];
-        this.database = getDatabase(this.app);
-        this.storage = getStorage(this.app);
-      }
-    } catch (error) {
-      console.error('Error initializing Firebase:', error);
-      console.warn('Firebase initialization failed. Running in offline mode.');
-    }
+  async getSafetyReports(_limit: number = 50): Promise<SafetyReport[]> {
+    return this.getMockSafetyReports();
   }
 
-  /**
-   * Submit safety report to community feed
-   */
-  async submitSafetyReport(report: Omit<SafetyReport, 'id'>): Promise<string | null> {
-    try {
-      if (!this.database) {
-        console.warn('Firebase database not available. Report not submitted.');
-        return null;
-      }
-
-      const reportsRef = ref(this.database, 'safety_reports');
-      const newReportRef = push(reportsRef);
-
-      const reportWithId = {
-        ...report,
-        id: newReportRef.key,
-      };
-
-      await set(newReportRef, reportWithId);
-      return newReportRef.key;
-    } catch (error) {
-      console.error('Error submitting safety report:', error);
-      return null;
-    }
-  }
-
-  /**
-   * Get safety reports near location
-   */
-  async getSafetyReports(limit: number = 50): Promise<SafetyReport[]> {
-    try {
-      if (!this.database) {
-        console.warn('Firebase database not available. Using mock data for testing.');
-        return this.getMockSafetyReports();
-      }
-
-      const reportsRef = ref(this.database, 'safety_reports');
-      const reportsQuery = query(
-        reportsRef,
-        orderByChild('timestamp'),
-        limitToLast(limit)
-      );
-
-      const snapshot = await get(reportsQuery);
-
-      if (!snapshot.exists()) {
-        console.warn('No reports in Firebase. Using mock data for testing.');
-        return this.getMockSafetyReports();
-      }
-
-      const reports: SafetyReport[] = [];
-      snapshot.forEach((child) => {
-        reports.push(child.val());
-      });
-
-      return reports.reverse(); // Most recent first
-    } catch (error) {
-      console.error('Error getting safety reports:', error);
-      console.warn('Using mock data due to error.');
-      return this.getMockSafetyReports();
-    }
-  }
-
-  /**
-   * Get mock safety reports for testing when Firebase is not available
-   */
   private getMockSafetyReports(): SafetyReport[] {
     const now = new Date();
     const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
@@ -164,7 +39,7 @@ export class FirebaseService {
     return [
       {
         id: 'mock-1',
-        location: { latitude: 28.6139, longitude: 77.2090, timestamp: oneHourAgo.getTime() }, // Delhi
+        location: { latitude: 28.6139, longitude: 77.2090, timestamp: oneHourAgo.getTime() },
         description: 'Suspicious person following women',
         severity: 'medium',
         type: 'suspicious',
@@ -176,7 +51,7 @@ export class FirebaseService {
       },
       {
         id: 'mock-2',
-        location: { latitude: 28.7041, longitude: 77.1025, timestamp: twoHoursAgo.getTime() }, // Nearby Delhi
+        location: { latitude: 28.7041, longitude: 77.1025, timestamp: twoHoursAgo.getTime() },
         description: 'Harassment incident reported',
         severity: 'high',
         type: 'harassment',
@@ -188,7 +63,7 @@ export class FirebaseService {
       },
       {
         id: 'mock-3',
-        location: { latitude: 28.6139, longitude: 77.2090, timestamp: yesterday.getTime() }, // Same location, older
+        location: { latitude: 28.6139, longitude: 77.2090, timestamp: yesterday.getTime() },
         description: 'Safe zone - well lit area with security',
         severity: 'low',
         type: 'safe_zone',
@@ -200,7 +75,7 @@ export class FirebaseService {
       },
       {
         id: 'mock-4',
-        location: { latitude: 19.0760, longitude: 72.8777, timestamp: oneHourAgo.getTime() }, // Mumbai (far away)
+        location: { latitude: 19.0760, longitude: 72.8777, timestamp: oneHourAgo.getTime() },
         description: 'Assault reported',
         severity: 'high',
         type: 'assault',
@@ -213,248 +88,76 @@ export class FirebaseService {
     ];
   }
 
-  /**
-   * Listen to real-time safety reports
-   */
-  listenToSafetyReports(callback: (reports: SafetyReport[]) => void): () => void {
-    if (!this.database) {
-      console.warn('Firebase database not available. Real-time updates disabled.');
-      return () => { };
-    }
-    if (!this.database) {
-      console.error('Database not initialized');
-      return () => { };
-    }
-
-    const reportsRef = ref(this.database, 'safety_reports');
-    const reportsQuery = query(reportsRef, orderByChild('timestamp'), limitToLast(50));
-
-    const listener = onValue(reportsQuery, (snapshot) => {
-      const reports: SafetyReport[] = [];
-
-      if (snapshot.exists()) {
-        snapshot.forEach((child) => {
-          reports.push(child.val());
-        });
-      }
-
-      callback(reports.reverse());
-    });
-
-    // Return unsubscribe function
-    return () => off(reportsRef);
+  listenToSafetyReports(_callback: (reports: SafetyReport[]) => void): () => void {
+    return () => { };
   }
 
-  /**
-   * Start buddy session
-   */
-  async startBuddySession(session: Omit<BuddySession, 'id'>): Promise<string | null> {
-    try {
-      if (!this.database) {
-        console.warn('Firebase database not available. Buddy session not started.');
-        return null;
-      }
+  // ═══════════════════════════════════════════
+  // BUDDY SESSIONS
+  // ═══════════════════════════════════════════
 
-      const sessionsRef = ref(this.database, 'buddy_sessions');
-      const newSessionRef = push(sessionsRef);
-
-      const sessionWithId = {
-        ...session,
-        id: newSessionRef.key,
-      };
-
-      await set(newSessionRef, sessionWithId);
-      return newSessionRef.key;
-    } catch (error) {
-      console.error('Error starting buddy session:', error);
-      return null;
-    }
+  async startBuddySession(_session: Omit<BuddySession, 'id'>): Promise<string | null> {
+    console.warn('FirebaseService offline: buddy session not started.');
+    return null;
   }
 
-  /**
-   * Update buddy session
-   */
-  async updateBuddySession(sessionId: string, updates: Partial<BuddySession>): Promise<boolean> {
-    try {
-      if (!this.database) {
-        console.warn('Firebase database not available. Buddy session not updated.');
-        return false;
-      }
-
-      const sessionRef = ref(this.database, `buddy_sessions/${sessionId}`);
-      await set(sessionRef, updates);
-      return true;
-    } catch (error) {
-      console.error('Error updating buddy session:', error);
-      return false;
-    }
+  async updateBuddySession(_sessionId: string, _updates: Partial<BuddySession>): Promise<boolean> {
+    console.warn('FirebaseService offline: buddy session not updated.');
+    return false;
   }
 
-  /**
-   * Listen to buddy session updates
-   */
-  listenToBuddySession(sessionId: string, callback: (session: BuddySession | null) => void): () => void {
-    if (!this.database) {
-      console.warn('Firebase database not available. Buddy session listener disabled.');
-      return () => { };
-    }
-
-    const sessionRef = ref(this.database, `buddy_sessions/${sessionId}`);
-
-    const listener = onValue(sessionRef, (snapshot) => {
-      if (snapshot.exists()) {
-        callback(snapshot.val());
-      } else {
-        callback(null);
-      }
-    });
-
-    return () => off(sessionRef);
+  listenToBuddySession(_sessionId: string, _callback: (session: BuddySession | null) => void): () => void {
+    return () => { };
   }
 
-  /**
-   * Upload evidence file
-   */
+  // ═══════════════════════════════════════════
+  // EVIDENCE UPLOAD
+  // ═══════════════════════════════════════════
+
   async uploadEvidence(
-    file: Blob,
-    alertId: string,
-    type: 'photo' | 'video' | 'audio'
+    _file: Blob,
+    _alertId: string,
+    _type: 'photo' | 'video' | 'audio'
   ): Promise<string | null> {
-    try {
-      if (!this.storage) {
-        console.warn('Firebase storage not available. Evidence not uploaded.');
-        return null;
-      }
-
-      const fileName = `${alertId}_${Date.now()}.${type === 'photo' ? 'jpg' : type === 'video' ? 'mp4' : 'mp3'}`;
-      const fileRef = storageRef(this.storage, `evidence/${alertId}/${fileName}`);
-
-      await uploadBytes(fileRef, file);
-      const downloadUrl = await getDownloadURL(fileRef);
-
-      return downloadUrl;
-    } catch (error) {
-      console.error('Error uploading evidence:', error);
-      return null;
-    }
+    console.warn('FirebaseService offline: evidence not uploaded.');
+    return null;
   }
 
-  /**
-   * Update user location in real-time (for buddy system)
-   */
+  // ═══════════════════════════════════════════
+  // USER LOCATION
+  // ═══════════════════════════════════════════
+
   async updateUserLocation(
-    userId: string,
-    latitude: number,
-    longitude: number
+    _userId: string,
+    _latitude: number,
+    _longitude: number
   ): Promise<boolean> {
-    try {
-      if (!this.database) {
-        console.warn('Firebase database not available. Location not updated.');
-        return false;
-      }
-
-      const locationRef = ref(this.database, `user_locations/${userId}`);
-      await set(locationRef, {
-        latitude,
-        longitude,
-        timestamp: Date.now(),
-      });
-
-      return true;
-    } catch (error) {
-      console.error('Error updating user location:', error);
-      return false;
-    }
+    return false;
   }
 
-  /**
-   * Listen to user location updates
-   */
   listenToUserLocation(
-    userId: string,
-    callback: (location: { latitude: number; longitude: number; timestamp: number } | null) => void
+    _userId: string,
+    _callback: (location: { latitude: number; longitude: number; timestamp: number } | null) => void
   ): () => void {
-    if (!this.database) {
-      console.warn('Firebase database not available. Location listener disabled.');
-      return () => { };
-    }
-
-    const locationRef = ref(this.database, `user_locations/${userId}`);
-
-    const listener = onValue(locationRef, (snapshot) => {
-      if (snapshot.exists()) {
-        callback(snapshot.val());
-      } else {
-        callback(null);
-      }
-    });
-
-    return () => off(locationRef);
+    return () => { };
   }
 
   // ═══════════════════════════════════════════
-  // BLE SOS RELAY ("Dumb Pipe")
+  // BLE SOS RELAY
   // ═══════════════════════════════════════════
 
-  /**
-   * Relay an SOS payload received via BLE to Firebase
-   * Called by the bystander device after picking up a victim's SOS broadcast
-   */
   async relaySOSPayload(
-    payload: BLESOSPayload,
-    relayedBy: string = 'anonymous-bystander'
+    _payload: BLESOSPayload,
+    _relayedBy: string = 'anonymous-bystander'
   ): Promise<string | null> {
-    try {
-      if (!this.database) {
-        console.warn('Firebase database not available. SOS relay failed.');
-        return null;
-      }
-
-      const relaysRef = ref(this.database, 'sos-relay');
-      const newRelayRef = push(relaysRef);
-
-      const relayRecord: BLERelayRecord = {
-        id: newRelayRef.key!,
-        payload,
-        relayedBy,
-        relayedAt: Date.now(),
-        delivered: false,
-      };
-
-      await set(newRelayRef, relayRecord);
-      console.log('✅ SOS relay saved to Firebase:', newRelayRef.key);
-      return newRelayRef.key;
-    } catch (error) {
-      console.error('Error relaying SOS to Firebase:', error);
-      return null;
-    }
+    console.warn('FirebaseService offline: SOS relay not available.');
+    return null;
   }
 
-  /**
-   * Listen for incoming SOS relay entries (for dashboard/admin)
-   */
   listenForSOSRelays(
-    callback: (relays: BLERelayRecord[]) => void
+    _callback: (relays: BLERelayRecord[]) => void
   ): () => void {
-    if (!this.database) {
-      console.warn('Firebase database not available. Relay listener disabled.');
-      return () => { };
-    }
-
-    const relaysRef = ref(this.database, 'sos-relay');
-    const relaysQuery = query(relaysRef, orderByChild('relayedAt'), limitToLast(20));
-
-    const listener = onValue(relaysQuery, (snapshot) => {
-      const relays: BLERelayRecord[] = [];
-      if (snapshot.exists()) {
-        snapshot.forEach((child) => {
-          relays.push(child.val());
-        });
-      }
-      callback(relays.reverse());
-    });
-
-    return () => off(relaysRef);
+    return () => { };
   }
 }
 

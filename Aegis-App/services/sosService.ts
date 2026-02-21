@@ -1,6 +1,5 @@
 // SOS Service - Handles emergency alerts
 
-import NetInfo from '@react-native-community/netinfo';
 import Constants from 'expo-constants';
 import { PermissionsAndroid, Linking, Platform } from 'react-native';
 import { sendSMS as sendNativeSMS } from '../modules/expo-sos-module';
@@ -23,9 +22,8 @@ if (Constants.appOwnership !== 'expo') {
 import * as SMS from 'expo-sms';
 import LocationService from './locationService';
 import StorageService from './storageService';
-import AutomaticSMSService from './automaticSMSService';
 import NearbyService from './nearbyService';
-import { SOS_CONFIG, BLE_CONFIG } from '../utils/constants';
+import { SOS_CONFIG } from '../utils/constants';
 import type { SOSAlert, EmergencyContact, Location as LocationType, BLESOSPayload } from '../types';
 
 export type SOSPhase = 'idle' | 'countdown' | 'sending' | 'ble-broadcasting' | 'alert-mode' | 'active' | 'resolved';
@@ -132,30 +130,11 @@ export class SOSService {
         return false;
       }
 
-      // Use automatic SMS service (no user interaction required)
-      const result = await AutomaticSMSService.sendSOSAutomatically(
-        contacts,
-        location,
-        address
-      );
-
-      if (result.success && result.failed.length === 0) {
-        return true;
-      }
-
-      const smsAvailable = await SMS.isAvailableAsync();
-      if (!smsAvailable) {
-        console.warn('SMS composer not available for fallback');
-        return result.success;
-      }
-
+      // Build SMS message directly (no Vercel dependency)
       const mapsUrl = `https://www.google.com/maps?q=${location.latitude},${location.longitude}`;
-      const message = `EMERGENCY! I need help. This is my current location:\n\nLocation: ${
-        address || 'Address unavailable'
-      }\n\nMap: ${mapsUrl}\n\nTimestamp: ${new Date().toLocaleString()}\n\nI'm in danger. Please help!`;
-      const fallbackRecipients = result.failed.length
-        ? result.failed
-        : contacts.map((contact) => contact.phoneNumber);
+      const message = `EMERGENCY! I need help. This is my current location:\n\nLocation: ${address || 'Address unavailable'
+        }\n\nMap: ${mapsUrl}\n\nTimestamp: ${new Date().toLocaleString()}\n\nI'm in danger. Please help!`;
+      const phoneNumbers = contacts.map((contact) => contact.phoneNumber);
 
       if (Platform.OS === 'android') {
         // 1. Request Runtime Permission for SEND_SMS
@@ -259,14 +238,22 @@ export class SOSService {
   // ═══════════════════════════════════════════
 
   /**
-   * Check if the device has internet connectivity using NetInfo
+   * Check if the device has internet connectivity
    */
   async checkInternetConnection(): Promise<boolean> {
     try {
-      const state = await NetInfo.fetch();
-      return !!(state.isConnected && state.isInternetReachable);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000);
+
+      const response = await fetch('https://clients3.google.com/generate_204', {
+        method: 'GET',
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeout);
+      return response.ok;
     } catch (error) {
-      console.warn('NetInfo check failed, assuming no internet:', error);
+      console.warn('Internet check failed, assuming no internet:', error);
       return false;
     }
   }

@@ -23,7 +23,7 @@
           "location",
           "audio",
           "fetch"
-        ]
+        ],
         "UIBackgroundModes": [
           "location",
           "audio",
