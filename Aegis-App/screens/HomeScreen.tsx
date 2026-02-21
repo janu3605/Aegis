@@ -190,13 +190,21 @@ export default function HomeScreen() {
         setHasActiveAlert(true);
 
 
-        Alert.alert(
-          'SOS Alert Sent',
-          `Emergency alerts sent to ${emergencyContacts.length} contact(s)`,
-          [{ text: 'OK' }]
-        );
-      },
-      type
+        const phase = SOSService.getCurrentPhase();
+        if (phase === 'ble-broadcasting') {
+          Alert.alert(
+            '📡 SOS Broadcasting',
+            'No cellular service. Broadcasting SOS via Bluetooth to nearby devices.',
+            [{ text: 'OK' }]
+          );
+        } else {
+          Alert.alert(
+            '🚨 SOS Alert Sent',
+            `Emergency alerts sent to ${emergencyContacts.length} contact(s)`,
+            [{ text: 'OK' }]
+          );
+        }
+      }
     );
   };
 
