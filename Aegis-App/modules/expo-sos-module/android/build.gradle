@@ -4,24 +4,16 @@ apply plugin: 'kotlin-android'
 group = 'expo.modules.sosmodule'
 version = '1.0.0'
 
-buildscript {
-  def expoModulesCorePlugin = new File(project(":expo-modules-core").projectDir.absolutePath, "ExpoModulesCorePlugin.gradle")
-  if (expoModulesCorePlugin.exists()) {
-    apply from: expoModulesCorePlugin
-    applyKotlinExpoModulesCorePlugin()
-  }
-}
-
 android {
-  compileSdkVersion safeExtGet("compileSdkVersion", 34)
+  compileSdkVersion rootProject.ext.has("compileSdkVersion") ? rootProject.ext.get("compileSdkVersion") : 34
   namespace "expo.modules.sosmodule"
   defaultConfig {
-    minSdkVersion safeExtGet("minSdkVersion", 21)
-    targetSdkVersion safeExtGet("targetSdkVersion", 34)
+    minSdkVersion rootProject.ext.has("minSdkVersion") ? rootProject.ext.get("minSdkVersion") : 24
+    targetSdkVersion rootProject.ext.has("targetSdkVersion") ? rootProject.ext.get("targetSdkVersion") : 34
   }
 }
 
 dependencies {
   implementation project(':expo-modules-core')
-  implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:\${safeExtGet('kotlinVersion', '1.8.10')}"
+  implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
 }

@@ -4,6 +4,7 @@ import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import { LOCATION_CONFIG } from '../utils/constants';
 import type { Location as LocationType, SafetyZone } from '../types';
+import StorageService from './storageService';
 
 const LOCATION_TASK_NAME = 'BACKGROUND_LOCATION_TASK';
 
@@ -12,7 +13,7 @@ export class LocationService {
   private currentLocation: LocationType | null = null;
   private watchId: any = null;
 
-  private constructor() {}
+  private constructor() { }
 
   static getInstance(): LocationService {
     if (!LocationService.instance) {
@@ -27,13 +28,13 @@ export class LocationService {
   async requestPermissions(): Promise<boolean> {
     try {
       const { status: foregroundStatus } = await Location.requestForegroundPermissionsAsync();
-      
+
       if (foregroundStatus !== 'granted') {
         return false;
       }
 
       const { status: backgroundStatus } = await Location.requestBackgroundPermissionsAsync();
-      
+
       return backgroundStatus === 'granted';
     } catch (error) {
       console.error('Error requesting location permissions:', error);
@@ -47,7 +48,7 @@ export class LocationService {
   async getCurrentLocation(): Promise<LocationType | null> {
     try {
       const { status } = await Location.getForegroundPermissionsAsync();
-      
+
       if (status !== 'granted') {
         const hasPermission = await this.requestPermissions();
         if (!hasPermission) return null;
@@ -78,7 +79,7 @@ export class LocationService {
   async startWatching(callback: (location: LocationType) => void): Promise<boolean> {
     try {
       const { status } = await Location.getForegroundPermissionsAsync();
-      
+
       if (status !== 'granted') {
         return false;
       }
@@ -97,7 +98,7 @@ export class LocationService {
             altitude: location.coords.altitude || undefined,
             timestamp: location.timestamp,
           };
-          
+
           this.currentLocation = locationData;
           callback(locationData);
         }
@@ -126,7 +127,7 @@ export class LocationService {
   async startBackgroundTracking(): Promise<boolean> {
     try {
       const { status } = await Location.getBackgroundPermissionsAsync();
-      
+
       if (status !== 'granted') {
         return false;
       }
@@ -261,18 +262,16 @@ export class LocationService {
     radiusMeters: number = 500
   ): Promise<number> {
     try {
-      // Import FirebaseService here to avoid circular dependencies
-      const FirebaseService = (await import('./firebaseService')).default;
-      
-      const reports = await FirebaseService.getSafetyReports(100); // Get recent reports
-      
+      // Use local storage service for safety reports
+      const reports = await StorageService.getSafetyReports();
+
       let totalScore = 100; // Start with perfect score
       let reportCount = 0;
       let highSeverityCount = 0;
       let positiveReports = 0;
-      
+
       const now = new Date();
-      
+
       // Process actual safety reports
       for (const report of reports) {
         const distance = this.calculateDistance(
@@ -281,17 +280,17 @@ export class LocationService {
           report.location.latitude,
           report.location.longitude
         );
-        
+
         if (distance <= radiusMeters) {
           reportCount++;
-          
+
           // Calculate time decay (reports lose impact over time)
           const hoursSinceReport = (now.getTime() - new Date(report.timestamp).getTime()) / (1000 * 60 * 60);
           const timeDecay = Math.max(0.1, Math.exp(-hoursSinceReport / 24)); // Half-life of 24 hours
-          
+
           // Calculate distance weight (closer reports have more impact)
           const distanceWeight = Math.max(0.1, 1 - (distance / radiusMeters));
-          
+
           let severityWeight = 0;
           switch (report.severity) {
             case 'high':
@@ -305,7 +304,7 @@ export class LocationService {
               severityWeight = 5;
               break;
           }
-          
+
           // Positive reports (safe zones) reduce the penalty
           if (report.type === 'safe_zone') {
             positiveReports++;
@@ -315,7 +314,7 @@ export class LocationService {
           }
         }
       }
-      
+
       // Apply heuristic-based safety scoring when no reports exist
       if (reportCount === 0) {
         totalScore = await this.calculateHeuristicSafetyScore(latitude, longitude);
@@ -323,7 +322,7 @@ export class LocationService {
       } else {
         console.log(`Using report-based score: ${totalScore} with ${reportCount} reports`);
       }
-      
+
       // Apply time-based factor (night time increases perceived risk)
       const currentHour = now.getHours();
       const isNightTime = currentHour >= 22 || currentHour <= 5;
@@ -472,7 +471,7 @@ export class LocationService {
     radiusMeters: number = 500
   ): Promise<'safe' | 'caution' | 'unsafe'> {
     const score = await this.calculateSafetyScore(latitude, longitude, radiusMeters);
-    
+
     if (score >= 70) return 'safe';
     if (score >= 40) return 'caution';
     return 'unsafe';
@@ -487,17 +486,16 @@ export class LocationService {
     radiusMeters: number = 500
   ): Promise<SafetyZone> {
     try {
-      const FirebaseService = (await import('./firebaseService')).default;
-      const reports = await FirebaseService.getSafetyReports(100);
-      
+      const reports = await StorageService.getSafetyReports();
+
       let reportCount = 0;
       let highSeverityCount = 0;
       let positiveReports = 0;
       let recentReports = 0;
-      
+
       const now = new Date();
       const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-      
+
       for (const report of reports) {
         const distance = this.calculateDistance(
           latitude,
@@ -505,24 +503,24 @@ export class LocationService {
           report.location.latitude,
           report.location.longitude
         );
-        
+
         if (distance <= radiusMeters) {
           reportCount++;
-          
+
           if (report.severity === 'high') highSeverityCount++;
           if (report.type === 'safe_zone') positiveReports++;
-          
+
           const reportTime = new Date(report.timestamp);
           if (reportTime > oneDayAgo) recentReports++;
         }
       }
-      
+
       const safetyScore = await this.calculateSafetyScore(latitude, longitude, radiusMeters);
       const classification = safetyScore >= 70 ? 'safe' : safetyScore >= 40 ? 'caution' : 'unsafe';
-      
+
       const currentHour = now.getHours();
       const timeFactor = (currentHour >= 22 || currentHour <= 5) ? 1.2 : 1.0;
-      
+
       return {
         location: {
           latitude,
@@ -572,11 +570,11 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }: any) => {
   if (data) {
     const { locations } = data;
     const location = locations[0];
-    
+
     if (location) {
       // Store location or send to backend
       console.log('Background location update:', location);
-      
+
       // Here you can:
       // 1. Save to AsyncStorage
       // 2. Check for pattern anomalies
