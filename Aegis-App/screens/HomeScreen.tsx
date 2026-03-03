@@ -34,6 +34,8 @@ export default function HomeScreen() {
 
   // Alert Mode animation
   const flashAnim = useRef(new Animated.Value(0)).current;
+  const flashAnimRef = useRef<Animated.CompositeAnimation | null>(null);
+  const prevPhaseRef = useRef<SOSPhase>('idle');
   const flashTimer = useRef<NodeJS.Timeout | null>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
 
@@ -57,9 +59,10 @@ export default function HomeScreen() {
   useEffect(() => {
     if (sosPhase === 'alert-mode') {
       startAlertModeEffects();
-    } else {
+    } else if (prevPhaseRef.current === 'alert-mode') {
       stopAlertMode();
     }
+    prevPhaseRef.current = sosPhase;
   }, [sosPhase]);
 
   // ═══════════════════════════════════════════
@@ -69,10 +72,11 @@ export default function HomeScreen() {
   const startAlertModeEffects = async () => {
     // Start screen flash animation
     const flashLoop = () => {
-      Animated.sequence([
+      flashAnimRef.current = Animated.sequence([
         Animated.timing(flashAnim, { toValue: 1, duration: 250, useNativeDriver: false }),
         Animated.timing(flashAnim, { toValue: 0, duration: 250, useNativeDriver: false }),
-      ]).start(() => flashLoop());
+      ]);
+      flashAnimRef.current.start(() => flashLoop());
     };
     flashLoop();
 
@@ -93,7 +97,11 @@ export default function HomeScreen() {
       soundRef.current = null;
     }
 
-    // Reset flash
+    // Stop animation before resetting value
+    if (flashAnimRef.current) {
+      flashAnimRef.current.stop();
+      flashAnimRef.current = null;
+    }
     flashAnim.setValue(0);
   };
 
@@ -157,6 +165,45 @@ export default function HomeScreen() {
         }
       }
     );
+  };
+
+  const handleSOSLongPress = async () => {
+    // Check if emergency contacts are configured
+    if (emergencyContacts.length === 0) {
+      Alert.alert(
+        'No Emergency Contacts',
+        'Please add emergency contacts before using SOS.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Add Contacts', onPress: () => router.push('/(tabs)/contacts' as any) },
+        ]
+      );
+      return;
+    }
+
+    // Haptic feedback to confirm long-press detected
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+
+    // Skip countdown — trigger SOS immediately
+    setIsLoading(true);
+    setHasActiveAlert(true);
+    await SOSService.triggerSOS('manual');
+    setIsLoading(false);
+
+    const phase = SOSService.getCurrentPhase();
+    if (phase === 'ble-broadcasting') {
+      Alert.alert(
+        '📡 SOS Broadcasting',
+        'No cellular service. Broadcasting SOS via Bluetooth to nearby devices.',
+        [{ text: 'OK' }]
+      );
+    } else {
+      Alert.alert(
+        '🚨 SOS Alert Sent',
+        `Emergency alerts sent to ${emergencyContacts.length} contact(s)`,
+        [{ text: 'OK' }]
+      );
+    }
   };
 
   const handleCancelCountdown = () => {
@@ -243,6 +290,8 @@ export default function HomeScreen() {
                 hasActiveAlert && styles.sosButtonActive,
               ]}
               onPress={handleSOSPress}
+              onLongPress={handleSOSLongPress}
+              delayLongPress={3000}
               disabled={isLoading || hasActiveAlert}
               activeOpacity={0.8}
             >
@@ -252,7 +301,7 @@ export default function HomeScreen() {
                 <>
                   <Text style={styles.sosButtonText}>SOS</Text>
                   <Text style={styles.sosButtonSubtext}>
-                    {hasActiveAlert ? 'Alert Active' : 'Press for Emergency'}
+                    {hasActiveAlert ? 'Alert Active' : 'Hold 3s for Instant SOS'}
                   </Text>
                 </>
               )}

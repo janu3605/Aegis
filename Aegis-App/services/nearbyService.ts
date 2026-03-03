@@ -116,7 +116,7 @@ export class NearbyService {
             // On Android 13+, check NEARBY_WIFI_DEVICES
             if (Platform.Version >= 33) {
                 const nearbyWifiGranted =
-                    results['android.permission.NEARBY_WIFI_DEVICES' as any] === PermissionsAndroid.RESULTS.GRANTED;
+                    (results as any)['android.permission.NEARBY_WIFI_DEVICES'] === PermissionsAndroid.RESULTS.GRANTED;
                 if (!nearbyWifiGranted) {
                     console.warn('NEARBY_WIFI_DEVICES permission denied — required on Android 13+ for Nearby Connections');
                     return false;
